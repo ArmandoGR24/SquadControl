@@ -15,14 +15,12 @@ RUN apk add --no-cache \
     oniguruma-dev \
     libxml2-dev
 
-# Instalar extensiones de PHP necesarias para que 'php artisan' funcione
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
-
 WORKDIR /app
 COPY . .
 
-# 1. Instalar dependencias de PHP (necesario para los plugins de Vite)
-RUN composer install --no-dev --optimize-autoloader --no-scripts
+# 1. Instalar dependencias de PHP 
+# Usamos --ignore-platform-reqs para que no falle por falta de extensiones en esta etapa
+RUN composer install --no-dev --optimize-autoloader --no-scripts --ignore-platform-reqs
 
 # 2. Instalar dependencias de Node y compilar assets
 RUN npm install && npm run build
@@ -32,7 +30,7 @@ RUN npm install && npm run build
 FROM php:8.2-fpm-alpine
 WORKDIR /var/www/html
 
-# Instalar extensiones necesarias en la imagen final
+# Instalar extensiones necesarias en la imagen final para que Laravel funcione
 RUN apk add --no-cache \
     libpng-dev \
     libjpeg-turbo-dev \
@@ -43,9 +41,10 @@ RUN apk add --no-cache \
     oniguruma-dev \
     libxml2-dev
 
+# Instalamos las extensiones críticas (incluyendo las que pidió el log anterior)
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
-# Copiar todo desde la etapa de build (incluye vendor/ y public/build/)
+# Copiar todo desde la etapa de build
 COPY --from=build-stage /app /var/www/html
 
 # Ajustar permisos para Laravel
