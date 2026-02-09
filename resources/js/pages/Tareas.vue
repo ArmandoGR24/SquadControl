@@ -195,7 +195,7 @@ const captureVideoPoster = (url: string) =>
                     const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
                     cleanup();
                     resolve(dataUrl);
-                } catch (error) {
+                } catch {
                     fail();
                 }
             },
@@ -209,7 +209,7 @@ const ensureVideoPoster = async (evidencia: Evidencia) => {
     try {
         const poster = await captureVideoPoster(evidencia.url);
         videoPosters.value = { ...videoPosters.value, [evidencia.id]: poster };
-    } catch (error) {
+    } catch {
         // Ignore poster failures to avoid blocking the UI.
     }
 };
