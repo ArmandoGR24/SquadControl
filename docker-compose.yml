@@ -6,8 +6,6 @@ services:
     restart: always
     env_file:
       - .env
-    # Esto permite que el contenedor use la red del host si necesitas 
-    # alcanzar IPs locales de forma más directa, aunque con la red de Dokploy basta
     networks:
       - dokploy-network
 
