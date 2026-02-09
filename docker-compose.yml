@@ -2,49 +2,15 @@ services:
   app:
     build:
       context: .
-      dockerfile: docker/php/Dockerfile
-    container_name: scuad-app
-    working_dir: /var/www/html
-    volumes:
-      - ./:/var/www/html
+      dockerfile: Dockerfile
+    restart: always
     env_file:
       - .env
-    depends_on:
-      - redis
+    # Esto permite que el contenedor use la red del host si necesitas 
+    # alcanzar IPs locales de forma más directa, aunque con la red de Dokploy basta
+    networks:
+      - dokploy-network
 
-  nginx:
-    image: nginx:1.27-alpine
-    container_name: scuad-nginx
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./:/var/www/html:ro
-      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
-    depends_on:
-      - app
-
-  redis:
-    image: redis:7-alpine
-    container_name: scuad-redis
-    ports:
-      - "6379:6379"
-
-  mailpit:
-    image: axllent/mailpit:latest
-    container_name: scuad-mailpit
-    ports:
-      - "8025:8025"
-      - "1025:1025"
-
-  node:
-    image: node:20-alpine
-    container_name: scuad-node
-    working_dir: /var/www/html
-    command: sh -c "npm install; npm run dev -- --host 0.0.0.0 --port 5173"
-    ports:
-      - "5173:5173"
-    volumes:
-      - ./:/var/www/html
-    depends_on:
-      - app
-
+networks:
+  dokploy-network:
+    external: true
