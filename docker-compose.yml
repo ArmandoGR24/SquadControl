@@ -6,6 +6,8 @@ services:
     restart: always
     env_file:
       - .env
+    # Forzamos a Laravel a servir en HTTP en el puerto 8000
+    command: php artisan serve --host=0.0.0.0 --port=8000
     networks:
       - dokploy-network
 

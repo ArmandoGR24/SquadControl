@@ -50,5 +50,9 @@ COPY --from=build-stage /app /var/www/html
 # Ajustar permisos para Laravel
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-EXPOSE 9000
-CMD ["php-fpm"]
+# Cambiamos el puerto al 8000 que es el estándar de 'artisan serve'
+EXPOSE 8000
+
+# El CMD se ignora si pusiste el 'command' en el docker-compose, 
+# pero es bueno dejarlo por consistencia.
+CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
