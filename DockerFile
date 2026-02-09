@@ -1,14 +1,21 @@
-# ETAPA 1: Compilar assets de Vue con Vite
-FROM node:18-alpine AS build-stage
+# ETAPA 1: Compilar assets (Necesitamos PHP + Node por los plugins de Vite)
+FROM php:8.2-alpine AS build-stage
+
+# Instalar Node.js, npm y dependencias necesarias para compilar
+RUN apk add --no-cache nodejs npm libpng-dev libjpeg-turbo-dev freetype-dev zip git unzip
+
 WORKDIR /app
 COPY . .
+
+# Instalar dependencias y compilar
+# (Ahora 'php artisan' funcionará porque estamos en una base de PHP)
 RUN npm install && npm run build
 
-# ETAPA 2: Servidor de Aplicación (PHP-FPM)
+# ETAPA 2: Servidor de Aplicación Final
 FROM php:8.2-fpm-alpine
 WORKDIR /var/www/html
 
-# Instalar dependencias esenciales
+# Instalar extensiones de PHP para producción
 RUN apk add --no-cache \
     libpng-dev \
     libjpeg-turbo-dev \
@@ -19,13 +26,12 @@ RUN apk add --no-cache \
     oniguruma-dev \
     libxml2-dev
 
-# Extensiones PHP necesarias para Laravel
 RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
-# Copiar el proyecto y los archivos compilados de Vue
+# Copiar el código y los assets ya compilados
 COPY --from=build-stage /app /var/www/html
 
-# Permisos de escritura para Laravel
+# Permisos para Laravel
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 EXPOSE 9000
