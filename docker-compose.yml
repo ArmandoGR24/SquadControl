@@ -1,13 +1,13 @@
 services:
   app:
-    image: thecodingmachine/php:8.4-v4-node20
+    image: php:8.4-cli-alpine
     restart: always
     env_file:
       - .env
     # Forzamos a Laravel a servir en HTTP en el puerto 8000
     command: >-
       sh -c "
-      apk add --no-cache bash icu-dev libzip-dev oniguruma-dev zlib-dev freetype-dev libjpeg-turbo-dev libpng-dev;
+      apk add --no-cache bash icu-dev libzip-dev oniguruma-dev zlib-dev freetype-dev libjpeg-turbo-dev libpng-dev nodejs npm;
       docker-php-ext-configure gd --with-freetype --with-jpeg;
       docker-php-ext-install -j\$(nproc) bcmath intl mbstring pdo_mysql zip gd;
       curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer;
