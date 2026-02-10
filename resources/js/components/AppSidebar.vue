@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, LayoutGrid, User } from 'lucide-vue-next';
+import { BookOpen, Clock, LayoutGrid, User } from 'lucide-vue-next';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
@@ -31,6 +31,11 @@ const mainNavItems: NavItem[] = [
         title: 'Tareas',
         href: 'tareas',
         icon: BookOpen,
+    },
+    {
+        title: 'Checkins',
+        href: 'checkins-admin',
+        icon: Clock,
     }
 ];
 

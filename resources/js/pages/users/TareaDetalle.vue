@@ -23,7 +23,7 @@ type Tarea = {
   id: number;
   nombre: string;
   instrucciones: string;
-  estado: 'Pendiente' | 'En progreso' | 'Completada';
+  estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
   evidencias: Evidencia[];
   historial: Historial[];
 };
@@ -121,7 +121,7 @@ const closeMedia = () => {
               >
                 <option value="Pendiente">Pendiente</option>
                 <option value="En progreso">En progreso</option>
-                <option value="Completada">Completada</option>
+                <option value="En revisión">En revisión</option>
               </select>
               <p v-if="statusForm.errors.status" class="text-xs text-destructive">
                 {{ statusForm.errors.status }}

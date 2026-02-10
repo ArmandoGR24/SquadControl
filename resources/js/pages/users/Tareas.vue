@@ -6,7 +6,7 @@ type Tarea = {
   id: number;
   nombre: string;
   instrucciones: string;
-  estado: 'Pendiente' | 'En progreso' | 'Completada';
+  estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
   evidencias: { id: number }[];
   historial: { id: number }[];
 };

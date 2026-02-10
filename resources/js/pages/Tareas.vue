@@ -28,7 +28,7 @@ type Tarea = {
     id: number;
     nombre: string;
     instrucciones: string;
-    estado: 'Pendiente' | 'En progreso' | 'Completada';
+    estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
     lideres: Lider[];
     evidencias: Evidencia[];
     historial: Historial[];
@@ -488,6 +488,7 @@ watch(
                                 >
                                     <option value="Pendiente">Pendiente</option>
                                     <option value="En progreso">En progreso</option>
+                                    <option value="En revisión">En revisión</option>
                                     <option value="Completada">Completada</option>
                                 </select>
                                 <p
@@ -622,6 +623,7 @@ watch(
                             >
                                 <option value="Pendiente">Pendiente</option>
                                 <option value="En progreso">En progreso</option>
+                                <option value="En revisión">En revisión</option>
                                 <option value="Completada">Completada</option>
                             </select>
                             <p v-if="editForm.errors.status" class="text-xs text-destructive">

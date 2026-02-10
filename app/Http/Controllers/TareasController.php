@@ -198,7 +198,7 @@ class TareasController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
-            'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'Completada'])],
+            'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'En revisión', 'Completada'])],
             'leader_ids' => ['array'],
             'leader_ids.*' => ['integer', Rule::exists('users', 'id')],
             'status_comment' => ['nullable', 'string', 'max:500'],
@@ -227,7 +227,7 @@ class TareasController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
-            'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'Completada'])],
+            'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'En revisión', 'Completada'])],
             'leader_ids' => ['array'],
             'leader_ids.*' => ['integer', Rule::exists('users', 'id')],
             'status_comment' => ['nullable', 'string', 'max:500'],
@@ -294,8 +294,9 @@ class TareasController extends Controller
             abort(403);
         }
 
+        // Líderes y empleados solo pueden usar estos estados
         $validated = $request->validate([
-            'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'Completada'])],
+            'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'En revisión'])],
             'status_comment' => ['nullable', 'string', 'max:500'],
         ]);
 
