@@ -1,58 +1,51 @@
-# ETAPA 1: Compilación de Frontend y Preparación de Laravel
-FROM php:8.2-alpine AS build-stage
+# Stage 1: build (PHP deps + frontend assets)
+FROM php:8.4-alpine AS build
 
-# Instalar dependencias del sistema, Node.js y herramientas de PHP
 RUN apk add --no-cache \
+    git \
+    unzip \
     nodejs \
     npm \
-    composer \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
-    zip \
-    git \
-    unzip \
     oniguruma-dev \
-    libxml2-dev
+    libxml2-dev \
+    zip \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 
 WORKDIR /app
 COPY . .
 
-# 1. Instalar dependencias de PHP 
-# Usamos --ignore-platform-reqs para que no falle por falta de extensiones en esta etapa
-RUN composer install --no-dev --optimize-autoloader --no-scripts --ignore-platform-reqs
+# PHP deps
+RUN composer install --no-dev --prefer-dist --no-interaction --no-progress
 
-# 2. Instalar dependencias de Node y compilar assets
-RUN npm install && npm run build
+# Frontend build
+ENV WAYFINDER_DISABLE=1
+RUN npm ci && npm run build
 
+# Stage 2: runtime
+FROM php:8.4-alpine
 
-# ETAPA 2: Servidor de Producción (PHP-FPM)
-FROM php:8.2-fpm-alpine
-WORKDIR /var/www/html
-
-# Instalar extensiones necesarias en la imagen final para que Laravel funcione
 RUN apk add --no-cache \
     libpng-dev \
     libjpeg-turbo-dev \
     freetype-dev \
-    zip \
-    git \
-    unzip \
     oniguruma-dev \
-    libxml2-dev
+    libxml2-dev \
+    zip \
+    && docker-php-ext-configure gd --with-freetype --with-jpeg \
+    && docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
 
-# Instalamos las extensiones críticas (incluyendo las que pidió el log anterior)
-RUN docker-php-ext-install pdo_mysql mbstring exif pcntl bcmath gd
+WORKDIR /var/www/html
+COPY --from=build /app /var/www/html
 
-# Copiar todo desde la etapa de build
-COPY --from=build-stage /app /var/www/html
+# Storage symlink and permissions
+RUN ln -s /var/www/html/storage/app/public /var/www/html/public/storage \
+    && chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Ajustar permisos para Laravel
-RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
-
-# Cambiamos el puerto al 8000 que es el estándar de 'artisan serve'
 EXPOSE 8000
-
-# El CMD se ignora si pusiste el 'command' en el docker-compose, 
-# pero es bueno dejarlo por consistencia.
 CMD ["php", "artisan", "serve", "--host=0.0.0.0", "--port=8000"]
