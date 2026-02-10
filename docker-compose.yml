@@ -1,16 +1,38 @@
 services:
   app:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: php:8.4-cli-alpine
     restart: always
     env_file:
       - .env
     # Forzamos a Laravel a servir en HTTP en el puerto 8000
-    command: php artisan serve --host=0.0.0.0 --port=8000
+    command: >-
+      sh -c "
+      apk add --no-cache bash icu-dev libzip-dev oniguruma-dev zlib-dev freetype-dev libjpeg-turbo-dev libpng-dev;
+      docker-php-ext-configure gd --with-freetype --with-jpeg;
+      docker-php-ext-install -j\$(nproc) bcmath intl mbstring pdo_mysql zip gd;
+      curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer;
+      composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+      php artisan serve --host=0.0.0.0 --port=8000
+      "
+    working_dir: /var/www/html
+    ports:
+      - "8000:8000"
+    depends_on:
+      - node
+    volumes:
+      - .:/var/www/html
+    networks:
+      - dokploy-network
+
+  node:
+    image: node:20-alpine
+    working_dir: /var/www/html
+    command: sh -c "npm ci && npm run build"
+    volumes:
+      - .:/var/www/html
     networks:
       - dokploy-network
 
 networks:
   dokploy-network:
-    external: true
+    driver: bridge
