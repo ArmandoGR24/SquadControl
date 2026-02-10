@@ -1,6 +1,6 @@
 services:
   app:
-    image: php:8.4-cli-alpine
+    image: thecodingmachine/php:8.4-v4-node20
     restart: always
     env_file:
       - .env
@@ -12,27 +12,13 @@ services:
       docker-php-ext-install -j\$(nproc) bcmath intl mbstring pdo_mysql zip gd;
       curl -sS https://getcomposer.org/installer | php -- --install-dir=/usr/local/bin --filename=composer;
       composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader;
+      npm ci;
+      npm run build;
       php artisan serve --host=0.0.0.0 --port=8000
       "
     working_dir: /var/www/html
     ports:
       - "8000:8000"
-    depends_on:
-      - node
-    volumes:
-      - .:/var/www/html
-    networks:
-      - dokploy-network
-
-  node:
-    image: php:8.4-cli-alpine
-    working_dir: /var/www/html
-    command: >-
-      sh -c "
-      apk add --no-cache nodejs npm;
-      npm ci;
-      npm run build
-      "
     volumes:
       - .:/var/www/html
     networks:
