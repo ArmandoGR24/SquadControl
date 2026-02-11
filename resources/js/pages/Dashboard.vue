@@ -107,7 +107,7 @@ const actions = [
                             Control operativo
                         </p>
                         <h1 class="mt-2 text-3xl font-semibold md:text-4xl">
-                            Centro de control SCUAD
+                            Centro de control SQUAD
                         </h1>
                         <p class="mt-2 text-sm text-slate-200">
                             Seguimiento de tareas, revision, evidencias y checkins en un solo lugar.
