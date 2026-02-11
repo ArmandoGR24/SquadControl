@@ -6,6 +6,8 @@ use App\Models\Task;
 use App\Models\TaskEvidence;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
+use App\Notifications\TaskReviewDecision;
+use App\Notifications\TaskSentForReview;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -311,6 +313,12 @@ class TareasController extends Controller
             'comment' => $validated['status_comment'] ?? null,
         ]);
 
+        if ($validated['status'] === 'En revisión') {
+            User::query()
+                ->whereIn('role', ['Supervisor', 'Admin'])
+                ->each(fn (User $user) => $user->notify(new TaskSentForReview($task, $request->user())));
+        }
+
         return redirect()->back();
     }
 
@@ -359,6 +367,15 @@ class TareasController extends Controller
                 'comment' => $validated['status_comment'] ?? 'Guia de revision.',
             ]);
         }
+
+        $decision = $validated['status'] === 'Completada' ? 'Aceptada' : 'Rechazada';
+        $task->leaders
+            ->each(fn (User $user) => $user->notify(new TaskReviewDecision(
+                $task,
+                $decision,
+                $validated['status_comment'] ?? null,
+                $request->user(),
+            )));
 
         return redirect()->back();
     }

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { Head, Link } from '@inertiajs/vue3';
+import { Head, Link, usePage } from '@inertiajs/vue3';
+import { computed } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
@@ -11,7 +12,24 @@ type DashboardStats = {
     checkinsToday: number;
 };
 
-const { stats } = defineProps<{ stats: DashboardStats }>();
+type NotificationItem = {
+    id: string;
+    type: string;
+    data: Record<string, unknown>;
+    created_at: string | null;
+    read_at: string | null;
+};
+
+const { stats, notifications } = defineProps<{
+    stats: DashboardStats;
+    notifications: NotificationItem[];
+}>();
+
+const page = usePage();
+const userRole = computed(() => (page.props.auth?.user as { role?: string } | null)?.role ?? '');
+const adminRoles = ['Admin', 'RH', 'Supervisor'];
+const isAdminPanelRole = computed(() => adminRoles.includes(userRole.value));
+const isLeaderPanelRole = computed(() => userRole.value === 'Lider de Cuadrilla');
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
@@ -28,6 +46,14 @@ const statCards = [
 ];
 
 const formatCount = (value: number) => value.toLocaleString('es-MX');
+const formatDate = (value: string | null) => (value ? new Date(value).toLocaleString('es-MX') : '');
+
+const reviewRequests = computed(() =>
+    notifications.filter((item) => item.type === 'task_review_requested'),
+);
+const reviewDecisions = computed(() =>
+    notifications.filter((item) => item.type === 'task_review_decision'),
+);
 
 const actions = [
     {
@@ -116,6 +142,76 @@ const actions = [
                             <span :class="['rounded-full px-2 py-0.5 text-[10px] font-semibold', stat.tone]">
                                 Hoy
                             </span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="rounded-2xl border border-sidebar-border/70 bg-background p-6 shadow-sm">
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <h2 class="text-lg font-semibold text-foreground">Notificaciones</h2>
+                    <span class="text-xs text-muted-foreground">
+                        Ultimos avisos del sistema
+                    </span>
+                </div>
+
+                <div class="mt-4 grid gap-4 lg:grid-cols-2">
+                    <div v-if="isAdminPanelRole" class="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-semibold text-foreground">Revision recibida</h3>
+                            <span class="text-xs text-muted-foreground">Admin/RH/Supervisor</span>
+                        </div>
+                        <div class="mt-3 space-y-3">
+                            <div
+                                v-for="item in reviewRequests"
+                                :key="item.id"
+                                class="rounded-lg border border-sidebar-border/70 bg-background p-3"
+                            >
+                                <div class="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{{ String(item.data.actor_name || 'Sin autor') }}</span>
+                                    <span>{{ formatDate(item.created_at) }}</span>
+                                </div>
+                                <p class="mt-2 text-sm font-semibold text-foreground">
+                                    {{ String(item.data.task_name || 'Tarea sin nombre') }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    Solicitud de revision.
+                                </p>
+                            </div>
+                            <p v-if="reviewRequests.length === 0" class="text-sm text-muted-foreground">
+                                Sin nuevas revisiones por ahora.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div v-if="isLeaderPanelRole" class="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
+                        <div class="flex items-center justify-between">
+                            <h3 class="text-sm font-semibold text-foreground">Decision de revision</h3>
+                            <span class="text-xs text-muted-foreground">Lider de cuadrilla</span>
+                        </div>
+                        <div class="mt-3 space-y-3">
+                            <div
+                                v-for="item in reviewDecisions"
+                                :key="item.id"
+                                class="rounded-lg border border-sidebar-border/70 bg-background p-3"
+                            >
+                                <div class="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>{{ String(item.data.actor_name || 'Supervisor') }}</span>
+                                    <span>{{ formatDate(item.created_at) }}</span>
+                                </div>
+                                <p class="mt-2 text-sm font-semibold text-foreground">
+                                    {{ String(item.data.task_name || 'Tarea sin nombre') }}
+                                </p>
+                                <p class="text-xs text-muted-foreground">
+                                    Resultado: {{ String(item.data.decision || 'Pendiente') }}
+                                </p>
+                                <p v-if="item.data.comment" class="text-xs text-muted-foreground">
+                                    Motivo: {{ String(item.data.comment) }}
+                                </p>
+                            </div>
+                            <p v-if="reviewDecisions.length === 0" class="text-sm text-muted-foreground">
+                                Sin decisiones recientes.
+                            </p>
                         </div>
                     </div>
                 </div>

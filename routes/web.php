@@ -5,6 +5,7 @@ use App\Http\Controllers\UsuariosController;
 use App\Models\Checkin;
 use App\Models\Task;
 use Carbon\Carbon;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -15,7 +16,8 @@ Route::get('/', function () {
     ]);
 })->name('home');
 
-Route::get('dashboard', function () {
+Route::get('dashboard', function (Request $request) {
+    $user = $request->user();
     $activeTasks = Task::query()
         ->where('status', '!=', 'Completada')
         ->count();
@@ -28,6 +30,20 @@ Route::get('dashboard', function () {
     $checkinsToday = Checkin::query()
         ->whereDate('check_in_time', Carbon::today())
         ->count();
+    $notifications = $user
+        ? $user->notifications()
+            ->latest()
+            ->limit(8)
+            ->get()
+            ->map(fn ($notification) => [
+                'id' => $notification->id,
+                'type' => $notification->data['type'] ?? $notification->type,
+                'data' => $notification->data,
+                'created_at' => optional($notification->created_at)->toDateTimeString(),
+                'read_at' => optional($notification->read_at)->toDateTimeString(),
+            ])
+            ->all()
+        : [];
 
     return Inertia::render('Dashboard', [
         'stats' => [
@@ -36,6 +52,7 @@ Route::get('dashboard', function () {
             'completedTasks' => $completedTasks,
             'checkinsToday' => $checkinsToday,
         ],
+        'notifications' => $notifications,
     ]);
 })->middleware(['auth', 'verified', 'role:Admin,RH,Supervisor'])->name('dashboard');
 
