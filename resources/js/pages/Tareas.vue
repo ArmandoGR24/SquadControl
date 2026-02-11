@@ -61,15 +61,26 @@ const editForm = useForm({
     status_comment: '',
 });
 
+const reviewForm = useForm({
+    status: 'Completada' as Tarea['estado'],
+    status_comment: '',
+    evidence: null as File | null,
+});
+
 const evidenceForm = useForm({
     evidence: null as File | null,
     comment: '',
 });
 
 const evidenceInputRef = ref<HTMLInputElement | null>(null);
+const reviewEvidenceInputRef = ref<HTMLInputElement | null>(null);
 
 const triggerEvidencePicker = () => {
     evidenceInputRef.value?.click();
+};
+
+const triggerReviewEvidencePicker = () => {
+    reviewEvidenceInputRef.value?.click();
 };
 
 const openCreate = () => {
@@ -92,6 +103,8 @@ const openEdit = (tarea: Tarea) => {
     editForm.leader_ids = tarea.lideres.map((lider) => lider.id);
     editForm.status_comment = '';
     editForm.clearErrors();
+    reviewForm.reset();
+    reviewForm.clearErrors();
     evidenceForm.reset();
     evidenceForm.clearErrors();
     isEditOpen.value = true;
@@ -103,6 +116,8 @@ const closeEdit = () => {
     editingTaskId.value = null;
     editForm.reset();
     editForm.clearErrors();
+    reviewForm.reset();
+    reviewForm.clearErrors();
     evidenceForm.reset();
     evidenceForm.clearErrors();
     activeTab.value = 'list';
@@ -131,6 +146,22 @@ const submitEvidence = () => {
         onSuccess: () => {
             evidenceForm.reset();
             evidenceForm.clearErrors();
+        },
+    });
+};
+
+const submitReview = (status: 'Completada' | 'En progreso') => {
+    if (!editingTaskId.value) return;
+    reviewForm.status = status;
+    reviewForm.patch(`/tareas/${editingTaskId.value}/revision`, {
+        preserveScroll: true,
+        forceFormData: true,
+        onSuccess: () => {
+            reviewForm.reset('status_comment', 'evidence');
+            reviewForm.clearErrors();
+            if (reviewEvidenceInputRef.value) {
+                reviewEvidenceInputRef.value.value = '';
+            }
         },
     });
 };
@@ -221,6 +252,8 @@ const openMedia = (evidencia: Evidencia) => {
 const closeMedia = () => {
     selectedMedia.value = null;
 };
+
+const canReview = computed(() => selectedTask.value?.estado === 'En revisión');
 
 watch(
     () => selectedTask.value?.evidencias ?? [],
@@ -639,7 +672,7 @@ watch(
                                 v-model="editForm.status_comment"
                                 type="text"
                                 class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
-                            />
+                             />
                         </div>
                     </div>
 
@@ -794,6 +827,99 @@ watch(
                             </p>
                         </div>
                     </div>
+                </div>
+
+                <div class="mt-6 rounded-xl border border-sidebar-border/70 p-4">
+                    <div class="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-sm font-semibold text-foreground">Revisión de supervisor</h3>
+                            <p class="text-xs text-muted-foreground">
+                                Aprueba como completada o solicita ajustes cuando la tarea esté en revisión.
+                            </p>
+                        </div>
+                        <span class="rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground">
+                            Estado actual: {{ selectedTask.estado }}
+                        </span>
+                    </div>
+
+                    <form class="mt-4 grid gap-3" @submit.prevent>
+                        <div class="grid gap-2">
+                            <label class="text-xs font-medium text-muted-foreground" for="review-comment">
+                                Comentario
+                            </label>
+                            <textarea
+                                id="review-comment"
+                                v-model="reviewForm.status_comment"
+                                rows="3"
+                                placeholder="Describe la aprobación o los ajustes solicitados."
+                                class="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+                            ></textarea>
+                            <p v-if="reviewForm.errors.status_comment" class="text-xs text-destructive">
+                                {{ reviewForm.errors.status_comment }}
+                            </p>
+                            <p v-if="reviewForm.errors.status" class="text-xs text-destructive">
+                                {{ reviewForm.errors.status }}
+                            </p>
+                            <p class="text-xs text-muted-foreground">
+                                El motivo es obligatorio si rechazas la revisión.
+                            </p>
+                            <p v-if="!canReview" class="text-xs text-muted-foreground">
+                                La tarea debe estar en revisión para aprobarla o enviar ajustes.
+                            </p>
+                        </div>
+
+                        <div class="grid gap-2">
+                            <label class="text-xs font-medium text-muted-foreground" for="review-evidence">
+                                Archivo de guia (opcional)
+                            </label>
+                            <input
+                                ref="reviewEvidenceInputRef"
+                                id="review-evidence"
+                                type="file"
+                                accept="image/*,video/mp4,video/quicktime"
+                                class="hidden"
+                                @change="
+                                    (event) =>
+                                        (reviewForm.evidence =
+                                            (event.target as HTMLInputElement).files?.[0] ?? null)
+                                "
+                            />
+                            <div class="flex flex-wrap items-center gap-2">
+                                <button
+                                    type="button"
+                                    class="h-9 rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground hover:bg-muted"
+                                    @click="triggerReviewEvidencePicker"
+                                >
+                                    Adjuntar guia
+                                </button>
+                                <span class="text-xs text-muted-foreground">
+                                    {{ reviewForm.evidence?.name || 'Sin archivo seleccionado.' }}
+                                </span>
+                            </div>
+                            <p v-if="reviewForm.errors.evidence" class="text-xs text-destructive">
+                                {{ reviewForm.errors.evidence }}
+                            </p>
+                        </div>
+
+                        <div class="flex flex-col gap-2 sm:flex-row sm:justify-end">
+                            <button
+                                type="button"
+                                class="h-9 rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground hover:bg-muted disabled:opacity-60"
+                                :disabled="reviewForm.processing || !canReview"
+                                @click="submitReview('En progreso')"
+                            >
+                                Rechazada
+                            </button>
+                            <button
+                                type="button"
+                                class="h-9 rounded-md bg-emerald-600 px-4 text-sm font-medium text-white shadow hover:bg-emerald-700 disabled:opacity-60"
+                                :disabled="reviewForm.processing || !canReview"
+                                @click="submitReview('Completada')"
+                            >
+                                Aceptada
+                            </button>
+                        </div>
+                    </form>
                 </div>
             </div>
 

@@ -2,6 +2,9 @@
 
 use App\Http\Controllers\TareasController;
 use App\Http\Controllers\UsuariosController;
+use App\Models\Checkin;
+use App\Models\Task;
+use Carbon\Carbon;
 use Illuminate\Support\Facades\Route;
 use Inertia\Inertia;
 use Laravel\Fortify\Features;
@@ -13,48 +16,72 @@ Route::get('/', function () {
 })->name('home');
 
 Route::get('dashboard', function () {
-    return Inertia::render('Dashboard');
-})->middleware(['auth', 'verified'])->name('dashboard');
+    $activeTasks = Task::query()
+        ->where('status', '!=', 'Completada')
+        ->count();
+    $inReviewTasks = Task::query()
+        ->where('status', 'En revisión')
+        ->count();
+    $completedTasks = Task::query()
+        ->where('status', 'Completada')
+        ->count();
+    $checkinsToday = Checkin::query()
+        ->whereDate('check_in_time', Carbon::today())
+        ->count();
+
+    return Inertia::render('Dashboard', [
+        'stats' => [
+            'activeTasks' => $activeTasks,
+            'inReviewTasks' => $inReviewTasks,
+            'completedTasks' => $completedTasks,
+            'checkinsToday' => $checkinsToday,
+        ],
+    ]);
+})->middleware(['auth', 'verified', 'role:Admin,RH,Supervisor'])->name('dashboard');
 
 Route::get('usuarios', [UsuariosController::class, 'index'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('usuarios');
 
 Route::post('usuarios', [UsuariosController::class, 'store'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('usuarios.store');
 
 Route::put('usuarios/{user}', [UsuariosController::class, 'update'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('usuarios.update');
 
 Route::delete('usuarios/{user}', [UsuariosController::class, 'destroy'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('usuarios.destroy');
 
 Route::get('tareas', [TareasController::class, 'index'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas');
 
 Route::post('tareas', [TareasController::class, 'store'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas.store');
 
 Route::put('tareas/{task}', [TareasController::class, 'update'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas.update');
 
 Route::delete('tareas/{task}', [TareasController::class, 'destroy'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas.destroy');
 
 Route::post('tareas/{task}/evidencias', [TareasController::class, 'storeEvidence'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas.evidencias.store');
 
 Route::patch('tareas/{task}/estado', [TareasController::class, 'updateStatus'])
     ->middleware(['auth'])
     ->name('tareas.estado');
+
+Route::patch('tareas/{task}/revision', [TareasController::class, 'review'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->name('tareas.revision');
 
 Route::get('mis-tareas', [TareasController::class, 'mine'])
     ->middleware(['auth'])

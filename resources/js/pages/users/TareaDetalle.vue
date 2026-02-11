@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import LeaderLayout from '@/layouts/LeaderLayout.vue';
 
 type Evidencia = {
@@ -52,6 +52,11 @@ const submitStatus = () => {
   });
 };
 
+const submitReviewRequest = () => {
+  statusForm.status = 'En revisión';
+  submitStatus();
+};
+
 const submitEvidence = () => {
   if (!evidenceForm.evidence) return;
   evidenceForm.post(`/tareas/${tarea.id}/evidencias`, {
@@ -75,6 +80,10 @@ const openMedia = (evidencia: Evidencia) => {
 const closeMedia = () => {
   selectedMedia.value = null;
 };
+
+const canSendReview = computed(
+  () => tarea.estado !== 'En revisión' && tarea.estado !== 'Completada',
+);
 </script>
 
 <template>
@@ -109,6 +118,19 @@ const closeMedia = () => {
       <div class="grid gap-4 lg:grid-cols-2">
         <div class="rounded-2xl border border-sidebar-border/70 bg-background p-5">
           <h2 class="text-sm font-semibold text-foreground">Reportar estado</h2>
+          <div class="mt-3 rounded-md border border-dashed border-input bg-muted/30 p-3">
+            <p class="text-xs text-muted-foreground">
+              Cuando la actividad esté lista, envíala a revisión para que el supervisor la apruebe.
+            </p>
+            <button
+              type="button"
+              class="mt-2 h-8 rounded-md bg-primary/10 px-3 text-xs font-semibold text-primary disabled:opacity-60"
+              :disabled="statusForm.processing || !canSendReview"
+              @click="submitReviewRequest"
+            >
+              Enviar a revisión
+            </button>
+          </div>
           <form class="mt-4 grid gap-3" @submit.prevent="submitStatus">
             <div class="grid gap-2">
               <label class="text-xs font-medium text-muted-foreground" for="status-select">

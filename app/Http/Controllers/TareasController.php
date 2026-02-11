@@ -313,4 +313,53 @@ class TareasController extends Controller
 
         return redirect()->back();
     }
+
+    public function review(Request $request, Task $task)
+    {
+        $role = $request->user()?->role;
+
+        if (!in_array($role, ['Supervisor', 'Admin'], true)) {
+            abort(403);
+        }
+
+        if ($task->status !== 'En revisión') {
+            return redirect()->back()->withErrors([
+                'status' => 'La tarea no está en revisión.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'status' => ['required', 'string', Rule::in(['Completada', 'En progreso'])],
+            'status_comment' => ['required_if:status,En progreso', 'string', 'max:500'],
+            'evidence' => [
+                'nullable',
+                'file',
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v',
+                'max:20480',
+            ],
+        ]);
+
+        $task->update([
+            'status' => $validated['status'],
+        ]);
+
+        TaskStatusHistory::create([
+            'task_id' => $task->id,
+            'user_id' => $request->user()?->id,
+            'status' => $validated['status'],
+            'comment' => $validated['status_comment'] ?? null,
+        ]);
+
+        if ($validated['status'] === 'En progreso' && $request->hasFile('evidence')) {
+            $path = $request->file('evidence')->store('task-evidences', 'public');
+
+            $task->evidences()->create([
+                'user_id' => $request->user()?->id,
+                'path' => $path,
+                'comment' => $validated['status_comment'] ?? 'Guia de revision.',
+            ]);
+        }
+
+        return redirect()->back();
+    }
 }
