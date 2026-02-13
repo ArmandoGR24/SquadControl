@@ -6,6 +6,7 @@ use App\Models\Checkin;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
+use App\Events\notificationsTask;
 
 class CheckinController extends Controller
 {
@@ -33,35 +34,41 @@ class CheckinController extends Controller
     }
 
     public function checkIn(Request $request)
-    {
-        $validated = $request->validate([
-            'latitude' => ['nullable', 'numeric'],
-            'longitude' => ['nullable', 'numeric'],
+{
+    $validated = $request->validate([
+        'latitude' => ['nullable', 'numeric'],
+        'longitude' => ['nullable', 'numeric'],
+    ]);
+
+    $user = $request->user();
+    $userId = $user?->id;
+
+    // Verificar si ya hay un checkin activo hoy
+    $existingCheckin = Checkin::where('user_id', $userId)
+        ->whereDate('check_in_time', today())
+        ->whereNull('check_out_time')
+        ->first();
+
+    if ($existingCheckin) {
+        return redirect()->back()->withErrors([
+            'checkin' => 'Ya has registrado una entrada hoy.',
         ]);
-
-        $userId = $request->user()?->id;
-
-        // Verificar si ya hay un checkin activo hoy
-        $existingCheckin = Checkin::where('user_id', $userId)
-            ->whereDate('check_in_time', today())
-            ->whereNull('check_out_time')
-            ->first();
-
-        if ($existingCheckin) {
-            return redirect()->back()->withErrors([
-                'checkin' => 'Ya has registrado una entrada hoy.',
-            ]);
-        }
-
-        Checkin::create([
-            'user_id' => $userId,
-            'check_in_time' => now(),
-            'check_in_latitude' => $validated['latitude'] ?? null,
-            'check_in_longitude' => $validated['longitude'] ?? null,
-        ]);
-
-        return redirect()->back();
     }
+
+    // 1. Crear el registro
+    Checkin::create([
+        'user_id' => $userId,
+        'check_in_time' => now(),
+        'check_in_latitude' => $validated['latitude'] ?? null,
+        'check_in_longitude' => $validated['longitude'] ?? null,
+    ]);
+
+    // 2. Disparar la notificación en tiempo real
+    $mensaje = "El usuario {$user->name} ha hecho check-in.";
+    broadcast(new notificationsTask($mensaje))->toOthers();
+
+    return redirect()->back();
+}
 
     public function checkOut(Request $request)
     {
@@ -71,6 +78,7 @@ class CheckinController extends Controller
         ]);
 
         $userId = $request->user()?->id;
+        $user = $request->user();
 
         // Buscar el checkin activo de hoy
         $checkin = Checkin::where('user_id', $userId)
@@ -90,6 +98,10 @@ class CheckinController extends Controller
             'check_out_latitude' => $validated['latitude'] ?? null,
             'check_out_longitude' => $validated['longitude'] ?? null,
         ]);
+
+            // Disparar la notificación en tiempo real
+            $mensaje = "El usuario {$user->name} ha hecho check-out.";
+            broadcast(new notificationsTask($mensaje))->toOthers();
 
         return redirect()->back();
     }

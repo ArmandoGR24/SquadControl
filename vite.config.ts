@@ -31,6 +31,15 @@ export default defineConfig({
         VitePWA({
             registerType: 'autoUpdate',
             injectRegister: 'auto',
+            workbox: {
+                navigateFallback: null,
+            },
+            
+            // ACTIVAR EL SERVICE WORKER EN DESARROLLO
+            devOptions: {
+                enabled: true, 
+                type: 'classic',
+            },
             manifest: {
                 name: 'ScuadControl',
                 short_name: 'Scuad',
@@ -58,7 +67,8 @@ export default defineConfig({
         port: 5173,
         strictPort: true,
         hmr: {
-            host: process.env.VITE_HMR_HOST || '192.168.100.160',
+            // Cuando usas Cloudflare, el cliente debe conectar al dominio HTTPS del túnel
+            host: process.env.VITE_HMR_HOST || 'pruebas.codigomaestro.org', 
             clientPort: 443, 
             protocol: 'wss'
         },

@@ -1,4 +1,7 @@
 import type { AppPageProps } from './index';
+import { AxiosInstance } from 'axios';
+import Pusher from 'pusher-js';
+import Echo from 'laravel-echo';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
@@ -24,3 +27,14 @@ declare module 'vue' {
         $headManager: ReturnType<typeof createHeadManager>;
     }
 }
+
+declare module '@laravel/echo-vue';
+
+declare global {
+    interface Window {
+        axios: AxiosInstance;
+        Pusher: typeof Pusher;
+        Echo: Echo;
+    }
+}
+export {};
