@@ -35,4 +35,9 @@ return [
         ],
     ],
 
+    'firebase' => [
+        'cacert_path' => env('FIREBASE_CACERT_PATH'),
+        'allow_insecure_ssl' => env('FIREBASE_ALLOW_INSECURE_SSL', false),
+    ],
+
 ];

@@ -36,6 +36,16 @@ const mainNavItems: NavItem[] = [
         title: 'Checkins',
         href: 'checkins-admin',
         icon: Clock,
+    },
+    {
+        title: 'Checkins',
+        href: 'checkins-admin',
+        icon: Clock,
+    },
+    {
+        title: 'Debug FCM',
+        href: 'fcm/debug',
+        icon: Clock,
     }
 ];
 

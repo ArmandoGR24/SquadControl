@@ -6,8 +6,7 @@ use App\Models\Task;
 use App\Models\TaskEvidence;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
-use App\Notifications\TaskReviewDecision;
-use App\Notifications\TaskSentForReview;
+use App\Services\TaskNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -15,6 +14,9 @@ use Inertia\Inertia;
 
 class TareasController extends Controller
 {
+    public function __construct(private TaskNotificationService $notificationService)
+    {
+    }
     public function mine(Request $request)
     {
         $userId = $request->user()?->id;
@@ -221,6 +223,13 @@ class TareasController extends Controller
             'comment' => $validated['status_comment'] ?? null,
         ]);
 
+        // Notificar a los líderes cuando se les asigna una tarea
+        $this->notificationService->notifyTaskAssigned(
+            $task,
+            $request->user(),
+            $validated['leader_ids'] ?? []
+        );
+
         return redirect()->back();
     }
 
@@ -243,6 +252,13 @@ class TareasController extends Controller
             'status' => $validated['status'],
         ]);
 
+        // Notificar a nuevos líderes asignados
+        $this->notificationService->notifyNewLeaderAssignments(
+            $task,
+            $validated['leader_ids'] ?? [],
+            $request->user()
+        );
+
         $task->leaders()->sync($validated['leader_ids'] ?? []);
 
         if ($previousStatus !== $validated['status'] || !empty($validated['status_comment'])) {
@@ -252,6 +268,18 @@ class TareasController extends Controller
                 'status' => $validated['status'],
                 'comment' => $validated['status_comment'] ?? null,
             ]);
+
+            // Notificar a todos los usuarios involucrados sobre el cambio de estado
+            if ($previousStatus !== $validated['status']) {
+                $this->notificationService->notifyTaskStatusChanged(
+                    $task,
+                    $previousStatus,
+                    $validated['status'],
+                    $validated['status_comment'] ?? null,
+                    $request->user(),
+                    $task->leaders()->pluck('users.id')->toArray()
+                );
+            }
         }
 
         return redirect()->back();
@@ -284,6 +312,13 @@ class TareasController extends Controller
             'comment' => $validated['comment'] ?? null,
         ]);
 
+        // Notificar sobre la nueva evidencia
+        $this->notificationService->notifyEvidenceAdded(
+            $task,
+            $validated['comment'] ?? null,
+            $request->user()
+        );
+
         return redirect()->back();
     }
 
@@ -302,6 +337,7 @@ class TareasController extends Controller
             'status_comment' => ['nullable', 'string', 'max:500'],
         ]);
 
+        $previousStatus = $task->status;
         $task->update([
             'status' => $validated['status'],
         ]);
@@ -313,10 +349,19 @@ class TareasController extends Controller
             'comment' => $validated['status_comment'] ?? null,
         ]);
 
+        // Notificar cambio de estado a otros líderes
+        $this->notificationService->notifyTaskStatusChanged(
+            $task,
+            $previousStatus,
+            $validated['status'],
+            $validated['status_comment'] ?? null,
+            $request->user(),
+            $task->leaders()->pluck('users.id')->toArray()
+        );
+
+        // Si se envía a revisión, notificar a supervisores y admins
         if ($validated['status'] === 'En revisión') {
-            User::query()
-                ->whereIn('role', ['Supervisor', 'Admin'])
-                ->each(fn (User $user) => $user->notify(new TaskSentForReview($task, $request->user())));
+            $this->notificationService->notifyTaskSentForReview($task, $request->user());
         }
 
         return redirect()->back();
@@ -368,14 +413,13 @@ class TareasController extends Controller
             ]);
         }
 
-        $decision = $validated['status'] === 'Completada' ? 'Aceptada' : 'Rechazada';
-        $task->leaders
-            ->each(fn (User $user) => $user->notify(new TaskReviewDecision(
-                $task,
-                $decision,
-                $validated['status_comment'] ?? null,
-                $request->user(),
-            )));
+        // Procesar revisión y enviar todas las notificaciones
+        $this->notificationService->processReview(
+            $task,
+            $validated['status'],
+            $validated['status_comment'] ?? null,
+            $request->user()
+        );
 
         return redirect()->back();
     }

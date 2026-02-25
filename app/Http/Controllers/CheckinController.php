@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\Checkin;
 use App\Models\User;
+use App\Models\UserFcmToken;
+use App\Services\FirebaseService;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Events\notificationsTask;
@@ -67,6 +69,18 @@ class CheckinController extends Controller
     $mensaje = "El usuario {$user->name} ha hecho check-in.";
     broadcast(new notificationsTask($mensaje))->toOthers();
 
+    if ($user?->role === 'Lider de Cuadrilla') {
+        $this->notifyRoles(
+            'Check-in de Lider de Cuadrilla',
+            $mensaje,
+            ['Admin', 'RH', 'Supervisor'],
+            [
+                'type' => 'checkin',
+                'user_id' => (string) $user->id,
+            ]
+        );
+    }
+
     return redirect()->back();
 }
 
@@ -102,6 +116,18 @@ class CheckinController extends Controller
             // Disparar la notificación en tiempo real
             $mensaje = "El usuario {$user->name} ha hecho check-out.";
             broadcast(new notificationsTask($mensaje))->toOthers();
+
+            if ($user?->role === 'Lider de Cuadrilla') {
+                $this->notifyRoles(
+                    'Check-out de Lider de Cuadrilla',
+                    $mensaje,
+                    ['Admin', 'RH', 'Supervisor'],
+                    [
+                        'type' => 'checkout',
+                        'user_id' => (string) $user->id,
+                    ]
+                );
+            }
 
         return redirect()->back();
     }
@@ -183,5 +209,51 @@ class CheckinController extends Controller
             'checkins' => $checkins,
             'usuarios' => $usuarios,
         ]);
+    }
+
+    private function notifyRoles(string $title, string $message, array $roles, array $data = []): void
+    {
+        $tokens = UserFcmToken::query()
+            ->whereHas('user', function ($query) use ($roles) {
+                $query->whereIn('role', $roles);
+            })
+            ->pluck('token')
+            ->filter()
+            ->unique()
+            ->values()
+            ->toArray();
+
+        if (empty($tokens)) {
+            \Log::warning('FCM roles notification skipped: no tokens found.', [
+                'roles' => $roles,
+                'title' => $title,
+            ]);
+            return;
+        }
+
+        $normalizedData = [];
+        foreach ($data as $key => $value) {
+            if (is_scalar($value) || $value === null) {
+                $normalizedData[$key] = (string) $value;
+                continue;
+            }
+
+            $normalizedData[$key] = json_encode($value);
+        }
+
+        $result = app(FirebaseService::class)->sendMulticast(
+            $tokens,
+            $title,
+            $message,
+            $normalizedData
+        );
+
+        if (!($result['success'] ?? false)) {
+            \Log::error('FCM roles notification failed.', [
+                'roles' => $roles,
+                'title' => $title,
+                'message' => $result['message'] ?? null,
+            ]);
+        }
     }
 }

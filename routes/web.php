@@ -128,4 +128,33 @@ Route::get('checkins-admin', [\App\Http\Controllers\CheckinController::class, 'a
     ->middleware(['auth'])
     ->name('checkins.admin');
 
+// Firebase Cloud Messaging Routes
+Route::get('fcm/debug', function () {
+    return Inertia::render('FCMDebug');
+})->middleware(['auth'])->name('fcm.debug');
+
+Route::post('fcm/token', [\App\Http\Controllers\FirebaseController::class, 'saveToken'])
+    ->middleware(['auth'])
+    ->name('fcm.token');
+
+Route::get('fcm/my-tokens', [\App\Http\Controllers\FirebaseController::class, 'myTokens'])
+    ->middleware(['auth'])
+    ->name('fcm.my-tokens');
+
+Route::post('fcm/test', [\App\Http\Controllers\FirebaseController::class, 'sendTestNotification'])
+    ->middleware(['auth'])
+    ->name('fcm.test');
+
+Route::post('fcm/broadcast', [\App\Http\Controllers\FirebaseController::class, 'sendBroadcast'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->name('fcm.broadcast');
+
+Route::post('fcm/universal-send', [\App\Http\Controllers\UniversalNotificationController::class, 'send'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->name('fcm.universal-send');
+
+Route::post('fcm/roles-send', [\App\Http\Controllers\UniversalNotificationController::class, 'sendByRoles'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->name('fcm.roles-send');
+
 require __DIR__.'/settings.php';

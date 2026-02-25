@@ -108,6 +108,8 @@ const handleCheckIn = async () => {
     checkInForm.post('/checkin/entrada', {
       preserveScroll: true,
     });
+
+
   } catch (error) {
     gpsError.value = error instanceof Error ? error.message : 'Error desconocido';
     // Enviar sin ubicación si falla
@@ -144,6 +146,8 @@ const formatDateTime = (isoString: string) => {
     minute: '2-digit',
   });
 };
+
+
 </script>
 
 <template>
