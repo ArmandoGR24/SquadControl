@@ -19,11 +19,19 @@ class TareasController extends Controller
     }
     public function mine(Request $request)
     {
-        $userId = $request->user()?->id;
+        $user = $request->user();
+        $userId = $user?->id;
+        $isLeader = $user?->role === 'Lider de Cuadrilla';
 
-        $tareas = Task::query()
-            ->whereHas('leaders', fn ($query) => $query->where('users.id', $userId))
+        $query = Task::query();
+
+        if (!$isLeader) {
+            $query->whereHas('leaders', fn ($leadersQuery) => $leadersQuery->where('users.id', $userId));
+        }
+
+        $tareas = $query
             ->with([
+                'leaders:id,name',
                 'evidences:id,task_id,user_id,path,comment,created_at',
                 'evidences.uploader:id,name',
                 'statusHistories:id,task_id,user_id,status,comment,created_at',
@@ -37,6 +45,13 @@ class TareasController extends Controller
                     'nombre' => $task->name,
                     'instrucciones' => $task->instructions,
                     'estado' => $task->status,
+                    'lideres' => $task->leaders
+                        ->map(fn (User $leader) => [
+                            'id' => $leader->id,
+                            'nombre' => $leader->name,
+                        ])
+                        ->values()
+                        ->all(),
                     'evidencias' => $task->evidences
                         ->sortByDesc('created_at')
                         ->map(function (TaskEvidence $evidence) {
@@ -74,11 +89,18 @@ class TareasController extends Controller
 
     public function showMine(Request $request, Task $task)
     {
-        $userId = $request->user()?->id;
+        $user = $request->user();
+        $userId = $user?->id;
+        $isLeader = $user?->role === 'Lider de Cuadrilla';
         $isAssigned = $task->leaders()->where('users.id', $userId)->exists();
 
-        if (!$isAssigned) {
+        if (!$isLeader && !$isAssigned) {
             abort(403);
+        }
+
+        // Si es líder y aún no está asignado, toma la tarea automáticamente.
+        if ($isLeader && !$isAssigned && $userId) {
+            $task->leaders()->syncWithoutDetaching([$userId]);
         }
 
         $task->load([
@@ -324,11 +346,18 @@ class TareasController extends Controller
 
     public function updateStatus(Request $request, Task $task)
     {
-        $userId = $request->user()?->id;
+        $user = $request->user();
+        $userId = $user?->id;
+        $isLeader = $user?->role === 'Lider de Cuadrilla';
         $isAssigned = $task->leaders()->where('users.id', $userId)->exists();
 
-        if (!$isAssigned) {
+        if (!$isAssigned && !$isLeader) {
             abort(403);
+        }
+
+        // Si un líder no estaba asignado y actualiza estado, se asigna automáticamente.
+        if ($isLeader && !$isAssigned && $userId) {
+            $task->leaders()->syncWithoutDetaching([$userId]);
         }
 
         // Líderes y empleados solo pueden usar estos estados

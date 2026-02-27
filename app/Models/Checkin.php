@@ -9,6 +9,7 @@ class Checkin extends Model
 {
     protected $fillable = [
         'user_id',
+        'checked_by_user_id',
         'check_in_time',
         'check_in_latitude',
         'check_in_longitude',
@@ -29,5 +30,10 @@ class Checkin extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function checkedBy(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'checked_by_user_id');
     }
 }

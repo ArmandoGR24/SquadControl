@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link } from '@inertiajs/vue3';
-import { BookOpen, Clock, LayoutGrid, User } from 'lucide-vue-next';
+import { BookOpen, Clock, LayoutGrid, User, Bug} from 'lucide-vue-next';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
@@ -37,15 +37,11 @@ const mainNavItems: NavItem[] = [
         href: 'checkins-admin',
         icon: Clock,
     },
-    {
-        title: 'Checkins',
-        href: 'checkins-admin',
-        icon: Clock,
-    },
+    
     {
         title: 'Debug FCM',
         href: 'fcm/debug',
-        icon: Clock,
+        icon: Bug,
     }
 ];
 

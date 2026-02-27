@@ -7,16 +7,32 @@ use App\Models\User;
 use App\Models\UserFcmToken;
 use App\Services\FirebaseService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
 use App\Events\notificationsTask;
 
 class CheckinController extends Controller
 {
+    private const MAX_CHECKIN_HOURS = 4;
+
+    private function hasCheckedByColumn(): bool
+    {
+        static $hasColumn = null;
+
+        if ($hasColumn === null) {
+            $hasColumn = Schema::hasColumn('checkins', 'checked_by_user_id');
+        }
+
+        return $hasColumn;
+    }
+
     public function index(Request $request)
     {
-        $userId = $request->user()?->id;
+        $authUser = $request->user();
+        $userId = $authUser?->id;
+        $isLeader = $authUser?->role === 'Lider de Cuadrilla';
 
-        // Obtener el último checkin del usuario
+        // Obtener el último checkin del usuario autenticado (modo no líder)
         $todayCheckin = Checkin::where('user_id', $userId)
             ->whereDate('check_in_time', today())
             ->latest('check_in_time')
@@ -29,9 +45,35 @@ class CheckinController extends Controller
             'check_out_time' => $todayCheckin->check_out_time?->toIso8601String(),
         ] : null;
 
+        $targetUsers = [];
+        if ($isLeader) {
+            $managedUsers = User::query()
+                ->whereIn('role', ['user', 'User', 'Empleado'])
+                ->where('status', 'Activo')
+                ->orderBy('name')
+                ->get(['id', 'name']);
+
+            $activeCheckinUserIds = Checkin::query()
+                ->whereDate('check_in_time', today())
+                ->whereNull('check_out_time')
+                ->whereIn('user_id', $managedUsers->pluck('id'))
+                ->pluck('user_id')
+                ->all();
+
+            $targetUsers = $managedUsers
+                ->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'has_active_checkin' => in_array($user->id, $activeCheckinUserIds, true),
+                ])
+                ->all();
+        }
+
         return Inertia::render('users/Checkin', [
             'hasCheckedIn' => $hasCheckedIn,
             'lastCheckin' => $lastCheckin,
+            'isLeaderMode' => $isLeader,
+            'targetUsers' => $targetUsers,
         ]);
     }
 
@@ -40,33 +82,82 @@ class CheckinController extends Controller
     $validated = $request->validate([
         'latitude' => ['nullable', 'numeric'],
         'longitude' => ['nullable', 'numeric'],
+        'target_user_ids' => ['nullable', 'array'],
+        'target_user_ids.*' => ['integer', 'exists:users,id'],
+        'include_self' => ['nullable', 'boolean'],
     ]);
 
     $user = $request->user();
     $userId = $user?->id;
 
-    // Verificar si ya hay un checkin activo hoy
-    $existingCheckin = Checkin::where('user_id', $userId)
+    $targetUserIds = [];
+
+    if ($user?->role === 'Lider de Cuadrilla') {
+        $allowedUserIds = User::query()
+            ->whereIn('role', ['user', 'User', 'Empleado'])
+            ->where('status', 'Activo')
+            ->pluck('id')
+            ->all();
+
+        $selectedUserIds = collect($validated['target_user_ids'] ?? [])
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => in_array($id, $allowedUserIds, true))
+            ->unique()
+            ->values()
+            ->all();
+
+        if (($validated['include_self'] ?? false) === true && $userId) {
+            $selectedUserIds[] = $userId;
+        }
+
+        $targetUserIds = collect($selectedUserIds)->unique()->values()->all();
+
+        if (empty($targetUserIds)) {
+            return redirect()->back()->withErrors([
+                'checkin' => 'Selecciona al menos un usuario para registrar entrada.',
+            ]);
+        }
+    } else {
+        $targetUserIds = [$userId];
+    }
+
+    $alreadyCheckedInIds = Checkin::query()
+        ->whereIn('user_id', $targetUserIds)
         ->whereDate('check_in_time', today())
         ->whereNull('check_out_time')
-        ->first();
+        ->pluck('user_id')
+        ->all();
 
-    if ($existingCheckin) {
+    $creatableUserIds = collect($targetUserIds)
+        ->reject(fn ($id) => in_array($id, $alreadyCheckedInIds, true))
+        ->values()
+        ->all();
+
+    if (empty($creatableUserIds)) {
         return redirect()->back()->withErrors([
-            'checkin' => 'Ya has registrado una entrada hoy.',
+            'checkin' => 'Todos los usuarios seleccionados ya tienen entrada activa.',
         ]);
     }
 
-    // 1. Crear el registro
-    Checkin::create([
-        'user_id' => $userId,
-        'check_in_time' => now(),
-        'check_in_latitude' => $validated['latitude'] ?? null,
-        'check_in_longitude' => $validated['longitude'] ?? null,
-    ]);
+    foreach ($creatableUserIds as $targetUserId) {
+        $payload = [
+            'user_id' => $targetUserId,
+            'check_in_time' => now(),
+            'check_in_latitude' => $validated['latitude'] ?? null,
+            'check_in_longitude' => $validated['longitude'] ?? null,
+        ];
+
+        if ($this->hasCheckedByColumn()) {
+            $payload['checked_by_user_id'] = $userId;
+        }
+
+        Checkin::create($payload);
+    }
 
     // 2. Disparar la notificación en tiempo real
-    $mensaje = "El usuario {$user->name} ha hecho check-in.";
+    $mensaje = $user?->role === 'Lider de Cuadrilla'
+        ? "{$user->name} registró check-in para ".count($creatableUserIds)." usuario(s)."
+        : "El usuario {$user->name} ha hecho check-in.";
     broadcast(new notificationsTask($mensaje))->toOthers();
 
     if ($user?->role === 'Lider de Cuadrilla') {
@@ -89,32 +180,87 @@ class CheckinController extends Controller
         $validated = $request->validate([
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
+            'target_user_ids' => ['nullable', 'array'],
+            'target_user_ids.*' => ['integer', 'exists:users,id'],
+            'include_self' => ['nullable', 'boolean'],
         ]);
 
-        $userId = $request->user()?->id;
         $user = $request->user();
+        $userId = $user?->id;
 
-        // Buscar el checkin activo de hoy
-        $checkin = Checkin::where('user_id', $userId)
+        $targetUserIds = [];
+
+        if ($user?->role === 'Lider de Cuadrilla') {
+            $allowedUserIds = User::query()
+                ->whereIn('role', ['user', 'User', 'Empleado'])
+                ->where('status', 'Activo')
+                ->pluck('id')
+                ->all();
+
+            $selectedUserIds = collect($validated['target_user_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => in_array($id, $allowedUserIds, true))
+                ->unique()
+                ->values()
+                ->all();
+
+            if (($validated['include_self'] ?? false) === true && $userId) {
+                $selectedUserIds[] = $userId;
+            }
+
+            $targetUserIds = collect($selectedUserIds)->unique()->values()->all();
+
+            if (empty($targetUserIds)) {
+                return redirect()->back()->withErrors([
+                    'checkout' => 'Selecciona al menos un usuario para registrar salida.',
+                ]);
+            }
+        } else {
+            $targetUserIds = [$userId];
+        }
+
+        // Buscar checkins activos de hoy para los usuarios seleccionados
+        $activeCheckins = Checkin::query()
+            ->whereIn('user_id', $targetUserIds)
             ->whereDate('check_in_time', today())
             ->whereNull('check_out_time')
-            ->latest('check_in_time')
-            ->first();
+            ->get();
 
-        if (!$checkin) {
+        if ($activeCheckins->isEmpty()) {
             return redirect()->back()->withErrors([
-                'checkout' => 'No hay un registro de entrada activo.',
+                'checkout' => 'No hay entradas activas para los usuarios seleccionados.',
             ]);
         }
 
-        $checkin->update([
-            'check_out_time' => now(),
-            'check_out_latitude' => $validated['latitude'] ?? null,
-            'check_out_longitude' => $validated['longitude'] ?? null,
-        ]);
+        $notReadyCheckins = $activeCheckins->filter(function (Checkin $checkin) {
+            $minimumCheckoutTime = $checkin->check_in_time->copy()->addHours(self::MAX_CHECKIN_HOURS);
+            return now()->lt($minimumCheckoutTime);
+        });
+
+        if ($notReadyCheckins->isNotEmpty()) {
+            return redirect()->back()->withErrors([
+                'checkout' => 'No se puede registrar salida antes de 4 horas desde la entrada.',
+            ]);
+        }
+
+        foreach ($activeCheckins as $checkin) {
+            $payload = [
+                'check_out_time' => now(),
+                'check_out_latitude' => $validated['latitude'] ?? null,
+                'check_out_longitude' => $validated['longitude'] ?? null,
+            ];
+
+            if ($this->hasCheckedByColumn()) {
+                $payload['checked_by_user_id'] = $userId;
+            }
+
+            $checkin->update($payload);
+        }
 
             // Disparar la notificación en tiempo real
-            $mensaje = "El usuario {$user->name} ha hecho check-out.";
+            $mensaje = $user?->role === 'Lider de Cuadrilla'
+                ? "{$user->name} registró check-out para ".$activeCheckins->count()." usuario(s)."
+                : "El usuario {$user->name} ha hecho check-out.";
             broadcast(new notificationsTask($mensaje))->toOthers();
 
             if ($user?->role === 'Lider de Cuadrilla') {
@@ -162,7 +308,13 @@ class CheckinController extends Controller
 
     public function adminIndex(Request $request)
     {
-        $query = Checkin::with(['user:id,name'])
+        $with = ['user:id,name'];
+
+        if ($this->hasCheckedByColumn()) {
+            $with[] = 'checkedBy:id,name';
+        }
+
+        $query = Checkin::with($with)
             ->orderByDesc('check_in_time');
 
         // Filtrar por usuario si se especifica
@@ -175,11 +327,17 @@ class CheckinController extends Controller
             $query->whereDate('check_in_time', $request->date);
         }
 
+        // Filtrar por usuario que registró (líder o auto-registro)
+        if ($this->hasCheckedByColumn() && $request->filled('checked_by_user_id')) {
+            $query->where('checked_by_user_id', $request->checked_by_user_id);
+        }
+
         $checkins = $query->get()
             ->map(function (Checkin $checkin) {
                 return [
                     'id' => $checkin->id,
                     'usuario' => $checkin->user?->name,
+                    'registrado_por' => $checkin->checkedBy?->name,
                     'user_id' => $checkin->user_id,
                     'check_in_time' => $checkin->check_in_time->toIso8601String(),
                     'check_in_latitude' => $checkin->check_in_latitude,
@@ -196,7 +354,16 @@ class CheckinController extends Controller
 
         // Obtener lista de usuarios para filtro
         $usuarios = User::select(['id', 'name'])
-            ->whereIn('role', ['Lider de Cuadrilla', 'Empleado'])
+            ->whereIn('role', ['Lider de Cuadrilla', 'Empleado', 'user', 'User'])
+            ->orderBy('name')
+            ->get()
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'nombre' => $user->name,
+            ])
+            ->all();
+
+        $registradores = User::select(['id', 'name'])
             ->orderBy('name')
             ->get()
             ->map(fn (User $user) => [
@@ -208,6 +375,7 @@ class CheckinController extends Controller
         return Inertia::render('CheckinAdmin', [
             'checkins' => $checkins,
             'usuarios' => $usuarios,
+            'registradores' => $registradores,
         ]);
     }
 

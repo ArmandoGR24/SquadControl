@@ -13,6 +13,7 @@ use Laravel\Fortify\Features;
 Route::get('/', function () {
     return Inertia::render('Welcome', [
         'canRegister' => Features::enabled(Features::registration()),
+        'canResetPassword' => Features::enabled(Features::resetPasswords()),
     ]);
 })->name('home');
 
@@ -55,6 +56,35 @@ Route::get('dashboard', function (Request $request) {
         'notifications' => $notifications,
     ]);
 })->middleware(['auth', 'verified', 'role:Admin,RH,Supervisor'])->name('dashboard');
+
+Route::delete('notifications/{notification}', function (Request $request, string $notification) {
+    $user = $request->user();
+
+    if ($user) {
+        $user->notifications()->where('id', $notification)->delete();
+    }
+
+    return back();
+})->middleware(['auth'])->name('notifications.destroy');
+
+Route::delete('notifications', function (Request $request) {
+    $user = $request->user();
+    $type = $request->input('type');
+
+    if (!$user) {
+        return back();
+    }
+
+    $query = $user->notifications();
+
+    if ($type) {
+        $query->whereJsonContains('data->type', $type);
+    }
+
+    $query->delete();
+
+    return back();
+})->middleware(['auth'])->name('notifications.destroy-all');
 
 Route::get('usuarios', [UsuariosController::class, 'index'])
     ->middleware(['auth', 'role:Admin,RH,Supervisor'])

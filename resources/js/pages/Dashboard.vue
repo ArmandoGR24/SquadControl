@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Head, Link, usePage } from '@inertiajs/vue3';
+import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { Trash2 } from 'lucide-vue-next';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { dashboard } from '@/routes';
 import { type BreadcrumbItem } from '@/types';
@@ -48,11 +49,27 @@ const statCards = [
 const formatCount = (value: number) => value.toLocaleString('es-MX');
 const formatDate = (value: string | null) => (value ? new Date(value).toLocaleString('es-MX') : '');
 
+const deleteNotification = (notificationId: string) => {
+    router.delete(`/notifications/${notificationId}`, {
+        preserveScroll: true,
+    });
+};
+
+const deleteAllNotifications = (type: 'task_review_requested' | 'task_review_decision') => {
+    router.delete('/notifications', {
+        data: { type },
+        preserveScroll: true,
+    });
+};
+
 const reviewRequests = computed(() =>
     notifications.filter((item) => item.type === 'task_review_requested'),
 );
 const reviewDecisions = computed(() =>
     notifications.filter((item) => item.type === 'task_review_decision'),
+);
+const singleNotificationsPanel = computed(
+    () => (isAdminPanelRole.value && !isLeaderPanelRole.value) || (!isAdminPanelRole.value && isLeaderPanelRole.value),
 );
 
 const actions = [
@@ -156,20 +173,44 @@ const actions = [
                 </div>
 
                 <div class="mt-4 grid gap-4 lg:grid-cols-2">
-                    <div v-if="isAdminPanelRole" class="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
+                    <div
+                        v-if="isAdminPanelRole"
+                        class="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4"
+                        :class="singleNotificationsPanel ? 'lg:col-span-2' : ''"
+                    >
                         <div class="flex items-center justify-between">
                             <h3 class="text-sm font-semibold text-foreground">Revision recibida</h3>
-                            <span class="text-xs text-muted-foreground">Admin/RH/Supervisor</span>
+                            <div class="flex items-center gap-3">
+                                <button
+                                    v-if="reviewRequests.length > 0"
+                                    type="button"
+                                    class="text-xs font-medium text-destructive hover:underline"
+                                    @click="deleteAllNotifications('task_review_requested')"
+                                >
+                                    Eliminar todas
+                                </button>
+                                <span class="text-xs text-muted-foreground">Admin/RH/Supervisor</span>
+                            </div>
                         </div>
-                        <div class="mt-3 space-y-3">
+                        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             <div
                                 v-for="item in reviewRequests"
                                 :key="item.id"
                                 class="rounded-lg border border-sidebar-border/70 bg-background p-3"
                             >
-                                <div class="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>{{ String(item.data.actor_name || 'Sin autor') }}</span>
-                                    <span>{{ formatDate(item.created_at) }}</span>
+                                <div class="flex items-start justify-between gap-3 text-xs text-muted-foreground">
+                                    <div class="flex min-w-0 flex-col gap-1">
+                                        <span class="truncate">{{ String(item.data.actor_name || 'Sin autor') }}</span>
+                                        <span>{{ formatDate(item.created_at) }}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                        title="Eliminar notificación"
+                                        @click="deleteNotification(item.id)"
+                                    >
+                                        <Trash2 class="h-4 w-4" />
+                                    </button>
                                 </div>
                                 <p class="mt-2 text-sm font-semibold text-foreground">
                                     {{ String(item.data.task_name || 'Tarea sin nombre') }}
@@ -184,20 +225,44 @@ const actions = [
                         </div>
                     </div>
 
-                    <div v-if="isLeaderPanelRole" class="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4">
+                    <div
+                        v-if="isLeaderPanelRole"
+                        class="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4"
+                        :class="singleNotificationsPanel ? 'lg:col-span-2' : ''"
+                    >
                         <div class="flex items-center justify-between">
                             <h3 class="text-sm font-semibold text-foreground">Decision de revision</h3>
-                            <span class="text-xs text-muted-foreground">Lider de cuadrilla</span>
+                            <div class="flex items-center gap-3">
+                                <button
+                                    v-if="reviewDecisions.length > 0"
+                                    type="button"
+                                    class="text-xs font-medium text-destructive hover:underline"
+                                    @click="deleteAllNotifications('task_review_decision')"
+                                >
+                                    Eliminar todas
+                                </button>
+                                <span class="text-xs text-muted-foreground">Lider de cuadrilla</span>
+                            </div>
                         </div>
-                        <div class="mt-3 space-y-3">
+                        <div class="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
                             <div
                                 v-for="item in reviewDecisions"
                                 :key="item.id"
                                 class="rounded-lg border border-sidebar-border/70 bg-background p-3"
                             >
-                                <div class="flex items-center justify-between text-xs text-muted-foreground">
-                                    <span>{{ String(item.data.actor_name || 'Supervisor') }}</span>
-                                    <span>{{ formatDate(item.created_at) }}</span>
+                                <div class="flex items-start justify-between gap-3 text-xs text-muted-foreground">
+                                    <div class="flex min-w-0 flex-col gap-1">
+                                        <span class="truncate">{{ String(item.data.actor_name || 'Supervisor') }}</span>
+                                        <span>{{ formatDate(item.created_at) }}</span>
+                                    </div>
+                                    <button
+                                        type="button"
+                                        class="rounded-md p-1 text-muted-foreground transition hover:bg-muted hover:text-foreground"
+                                        title="Eliminar notificación"
+                                        @click="deleteNotification(item.id)"
+                                    >
+                                        <Trash2 class="h-4 w-4" />
+                                    </button>
                                 </div>
                                 <p class="mt-2 text-sm font-semibold text-foreground">
                                     {{ String(item.data.task_name || 'Tarea sin nombre') }}

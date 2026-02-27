@@ -2,6 +2,7 @@
 import { Head, router, useForm } from '@inertiajs/vue3';
 import { computed, ref, watch } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { optimizeEvidenceFile, validateEvidenceFile } from '@/lib/evidenceUpload';
 
 type Lider = {
     id: number;
@@ -81,6 +82,56 @@ const triggerEvidencePicker = () => {
 
 const triggerReviewEvidencePicker = () => {
     reviewEvidenceInputRef.value?.click();
+};
+
+const setEvidenceFile = async (file: File | null) => {
+    evidenceForm.clearErrors('evidence');
+    if (!file) {
+        evidenceForm.evidence = null;
+        return;
+    }
+
+    const validationError = validateEvidenceFile(file);
+    if (validationError) {
+        evidenceForm.evidence = null;
+        evidenceForm.setError('evidence', validationError);
+        return;
+    }
+
+    const optimizedFile = await optimizeEvidenceFile(file);
+    const optimizedValidationError = validateEvidenceFile(optimizedFile);
+    if (optimizedValidationError) {
+        evidenceForm.evidence = null;
+        evidenceForm.setError('evidence', optimizedValidationError);
+        return;
+    }
+
+    evidenceForm.evidence = optimizedFile;
+};
+
+const setReviewEvidenceFile = async (file: File | null) => {
+    reviewForm.clearErrors('evidence');
+    if (!file) {
+        reviewForm.evidence = null;
+        return;
+    }
+
+    const validationError = validateEvidenceFile(file);
+    if (validationError) {
+        reviewForm.evidence = null;
+        reviewForm.setError('evidence', validationError);
+        return;
+    }
+
+    const optimizedFile = await optimizeEvidenceFile(file);
+    const optimizedValidationError = validateEvidenceFile(optimizedFile);
+    if (optimizedValidationError) {
+        reviewForm.evidence = null;
+        reviewForm.setError('evidence', optimizedValidationError);
+        return;
+    }
+
+    reviewForm.evidence = optimizedFile;
 };
 
 const openCreate = () => {
@@ -725,13 +776,9 @@ watch(
                             <input
                                 ref="evidenceInputRef"
                                 type="file"
-                                accept="image/*,video/mp4,video/quicktime"
+                                accept="image/*,video/mp4,video/quicktime,video/x-m4v"
                                 class="hidden"
-                                @change="
-                                    (event) =>
-                                        (evidenceForm.evidence =
-                                            (event.target as HTMLInputElement).files?.[0] ?? null)
-                                "
+                                @change="(event) => setEvidenceFile((event.target as HTMLInputElement).files?.[0] ?? null)"
                             />
                             <button
                                 type="button"
@@ -876,13 +923,9 @@ watch(
                                 ref="reviewEvidenceInputRef"
                                 id="review-evidence"
                                 type="file"
-                                accept="image/*,video/mp4,video/quicktime"
+                                accept="image/*,video/mp4,video/quicktime,video/x-m4v"
                                 class="hidden"
-                                @change="
-                                    (event) =>
-                                        (reviewForm.evidence =
-                                            (event.target as HTMLInputElement).files?.[0] ?? null)
-                                "
+                                @change="(event) => setReviewEvidenceFile((event.target as HTMLInputElement).files?.[0] ?? null)"
                             />
                             <div class="flex flex-wrap items-center gap-2">
                                 <button

@@ -11,6 +11,7 @@ type Usuario = {
 type Checkin = {
   id: number;
   usuario: string;
+  registrado_por: string | null;
   user_id: number;
   check_in_time: string;
   check_in_latitude: number | null;
@@ -24,9 +25,11 @@ type Checkin = {
 const { checkins, usuarios } = defineProps<{
   checkins: Checkin[];
   usuarios: Usuario[];
+  registradores: Usuario[];
 }>();
 
 const selectedUserId = ref<number | null>(null);
+const selectedRegistrarId = ref<number | null>(null);
 const selectedDate = ref('');
 
 const applyFilters = () => {
@@ -39,6 +42,10 @@ const applyFilters = () => {
   if (selectedDate.value) {
     params.date = selectedDate.value;
   }
+
+  if (selectedRegistrarId.value) {
+    params.checked_by_user_id = selectedRegistrarId.value;
+  }
   
   router.get('/checkins-admin', params, {
     preserveState: true,
@@ -48,6 +55,7 @@ const applyFilters = () => {
 
 const clearFilters = () => {
   selectedUserId.value = null;
+  selectedRegistrarId.value = null;
   selectedDate.value = '';
   router.get('/checkins-admin', {}, {
     preserveState: true,
@@ -126,7 +134,7 @@ watch(
       <!-- Filtros -->
       <div class="rounded-2xl border border-sidebar-border/70 bg-background p-5 shadow-sm">
         <h2 class="mb-4 text-sm font-semibold text-foreground">Filtros</h2>
-        <div class="grid gap-3 sm:grid-cols-3">
+        <div class="grid gap-3 sm:grid-cols-4">
           <div class="grid gap-2">
             <label class="text-xs font-medium text-muted-foreground" for="filter-user">
               Usuario
@@ -153,6 +161,22 @@ watch(
               type="date"
               class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
             />
+          </div>
+
+          <div class="grid gap-2">
+            <label class="text-xs font-medium text-muted-foreground" for="filter-registrar">
+              Registrado por
+            </label>
+            <select
+              id="filter-registrar"
+              v-model="selectedRegistrarId"
+              class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+            >
+              <option :value="null">Todos</option>
+              <option v-for="registrador in registradores" :key="registrador.id" :value="registrador.id">
+                {{ registrador.nombre }}
+              </option>
+            </select>
           </div>
 
           <div class="flex items-end gap-2">
@@ -212,6 +236,12 @@ watch(
               </h2>
               <p class="text-xs capitalize text-muted-foreground">
                 {{ formatDate(checkin.check_in_time) }}
+              </p>
+              <p class="mt-1 text-xs text-muted-foreground">
+                Registrado por:
+                <span class="font-medium text-foreground">
+                  {{ checkin.registrado_por || checkin.usuario }}
+                </span>
               </p>
             </div>
             <div class="flex items-center gap-2">

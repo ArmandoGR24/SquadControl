@@ -2,6 +2,7 @@
 import { Link, useForm } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import LeaderLayout from '@/layouts/LeaderLayout.vue';
+import { optimizeEvidenceFile, validateEvidenceFile } from '@/lib/evidenceUpload';
 
 type Evidencia = {
   id: number;
@@ -44,6 +45,31 @@ const evidenceInputRef = ref<HTMLInputElement | null>(null);
 
 const triggerEvidencePicker = () => {
   evidenceInputRef.value?.click();
+};
+
+const setEvidenceFile = async (file: File | null) => {
+  evidenceForm.clearErrors('evidence');
+  if (!file) {
+    evidenceForm.evidence = null;
+    return;
+  }
+
+  const validationError = validateEvidenceFile(file);
+  if (validationError) {
+    evidenceForm.evidence = null;
+    evidenceForm.setError('evidence', validationError);
+    return;
+  }
+
+  const optimizedFile = await optimizeEvidenceFile(file);
+  const optimizedValidationError = validateEvidenceFile(optimizedFile);
+  if (optimizedValidationError) {
+    evidenceForm.evidence = null;
+    evidenceForm.setError('evidence', optimizedValidationError);
+    return;
+  }
+
+  evidenceForm.evidence = optimizedFile;
 };
 
 const submitStatus = () => {
@@ -181,13 +207,9 @@ const canSendReview = computed(
             <input
               ref="evidenceInputRef"
               type="file"
-              accept="image/*,video/mp4,video/quicktime"
+              accept="image/*,video/mp4,video/quicktime,video/x-m4v"
               class="hidden"
-              @change="
-                (event) =>
-                  (evidenceForm.evidence =
-                    (event.target as HTMLInputElement).files?.[0] ?? null)
-              "
+              @change="(event) => setEvidenceFile((event.target as HTMLInputElement).files?.[0] ?? null)"
             />
             <button
               type="button"

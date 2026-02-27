@@ -7,6 +7,7 @@ type Tarea = {
   nombre: string;
   instrucciones: string;
   estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
+  lideres?: { id: number; nombre: string }[];
   evidencias: { id: number }[];
   historial: { id: number }[];
 };
@@ -20,12 +21,12 @@ const { tareas } = defineProps<{ tareas: Tarea[] }>();
       <div>
         <h1 class="text-xl font-semibold text-foreground">Mis tareas</h1>
         <p class="text-sm text-muted-foreground">
-          Tareas asignadas a tu usuario. Toca una tarjeta para ver el detalle.
+          Tareas disponibles para cuadrillas. Abre una tarea para tomarla y continuar con evidencias previas.
         </p>
       </div>
 
       <div v-if="tareas.length === 0" class="rounded-2xl border border-sidebar-border/70 p-6">
-        <p class="text-sm text-muted-foreground">No tienes tareas asignadas.</p>
+        <p class="text-sm text-muted-foreground">No hay tareas disponibles.</p>
       </div>
 
       <div v-else class="grid gap-4">

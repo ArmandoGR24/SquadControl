@@ -53,6 +53,13 @@ return [
             'transport' => 'ses',
         ],
 
+        'mailgun' => [
+            'transport' => 'mailgun',
+            'client' => [
+                'cafile' => storage_path('certs/cacert.pem'),
+            ],
+        ],
+
         'postmark' => [
             'transport' => 'postmark',
             // 'message_stream_id' => env('POSTMARK_MESSAGE_STREAM_ID'),
