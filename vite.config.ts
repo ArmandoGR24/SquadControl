@@ -41,8 +41,8 @@ export default defineConfig({
                 type: 'classic',
             },
             manifest: {
-                name: 'ScuadControl',
-                short_name: 'Scuad',
+                name: 'SquadControl',
+                short_name: 'Squad',
                 description: 'Gestión de Cuadrillas de Trabajo',
                 theme_color: '#ffffff',
                 background_color: '#ffffff',
