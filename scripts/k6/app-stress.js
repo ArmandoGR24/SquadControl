@@ -1,5 +1,5 @@
-import http from 'k6/http';
 import { check, group, sleep } from 'k6';
+import http from 'k6/http';
 
 http.setResponseCallback(
   http.expectedStatuses(
@@ -76,7 +76,7 @@ function extractInertiaPage(html) {
   try {
     const decoded = decodeHtmlEntities(match[1]);
     return JSON.parse(decoded);
-  } catch (_) {
+  } catch {
     return null;
   }
 }

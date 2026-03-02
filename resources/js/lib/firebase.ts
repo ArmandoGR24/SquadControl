@@ -1,5 +1,5 @@
-import { initializeApp } from 'firebase/app';
 import { getAnalytics, isSupported as isAnalyticsSupported } from 'firebase/analytics';
+import { initializeApp } from 'firebase/app';
 import {
     deleteToken,
     getMessaging,

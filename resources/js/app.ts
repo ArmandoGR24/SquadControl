@@ -3,9 +3,10 @@ import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import '../css/app.css';
+import type { PluginOptions} from "vue-toastification";
+import Toast, { POSITION } from "vue-toastification";
 import { initializeTheme } from './composables/useAppearance';
 import { saveFCMToken, saveFCMTokenForced, retryPendingFCMToken } from './composables/useFCMToken';
-import Toast, { PluginOptions, POSITION } from "vue-toastification";
 import "vue-toastification/dist/index.css";
 import {
     initializeFirebaseAnalytics,
@@ -95,7 +96,7 @@ initializeFirebaseAnalytics().catch((error) => {
 
 // Listener para reintentar guardar token FCM después de navegación
 // Útil cuando el usuario hace login
-router.on('finish', (event) => {
+router.on('finish', () => {
     // Reintentar guardar token pendiente si hay uno
     retryPendingFCMToken();
 

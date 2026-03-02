@@ -11,10 +11,18 @@ use Kreait\Firebase\Messaging\Notification;
 
 class FirebaseService
 {
-    protected $messaging;
+    protected $messaging = null;
 
     public function __construct()
     {
+    }
+
+    private function initializeMessaging(): void
+    {
+        if ($this->messaging !== null) {
+            return;
+        }
+
         $serviceAccountPath = storage_path('app/firebase-service-account.json');
 
         if (!file_exists($serviceAccountPath)) {
@@ -89,6 +97,8 @@ class FirebaseService
     public function sendNotification(string $token, string $title, string $body, array $data = []): array
     {
         try {
+            $this->initializeMessaging();
+
             $notification = Notification::create($title, $body);
 
             $message = CloudMessage::new()
@@ -125,6 +135,8 @@ class FirebaseService
     public function sendMulticast(array $tokens, string $title, string $body, array $data = []): array
     {
         try {
+            $this->initializeMessaging();
+
             $notification = Notification::create($title, $body);
 
             $message = CloudMessage::new()
@@ -175,6 +187,7 @@ class FirebaseService
     public function validateToken(string $token): bool
     {
         try {
+            $this->initializeMessaging();
             $this->messaging->validateRegistrationTokens([$token]);
             return true;
         } catch (\Exception $e) {

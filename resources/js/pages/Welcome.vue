@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { Form, Head, Link, usePage } from '@inertiajs/vue3';
+import { Download } from 'lucide-vue-next';
+import { computed, onMounted, onUnmounted, ref } from 'vue';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import InputError from '@/components/InputError.vue';
 import TextLink from '@/components/TextLink.vue';
@@ -15,13 +17,11 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
-import { Download } from 'lucide-vue-next';
 import { saveFCMTokenForced } from '@/composables/useFCMToken';
 import { refreshFirebaseMessagingToken } from '@/lib/firebase';
 import { dashboard, register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
-import { computed, onMounted, onUnmounted, ref } from 'vue';
 
 interface BeforeInstallPromptEvent extends Event {
     readonly platforms: string[];

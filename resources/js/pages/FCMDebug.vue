@@ -174,10 +174,9 @@
 </template>
 
 <script setup lang="ts">
+import { usePage } from '@inertiajs/vue3';
 import { ref, computed, onMounted } from 'vue';
-import { usePage, router } from '@inertiajs/vue3';
-import { getToken } from 'firebase/messaging';
-import { initializeFirebaseMessaging, getFirebaseMessaging } from '@/lib/firebase';
+import { initializeFirebaseMessaging } from '@/lib/firebase';
 
 const page = usePage();
 const user = computed(() => page.props.auth?.user);

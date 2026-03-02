@@ -1,9 +1,8 @@
 <script setup lang="ts">
-import { computed } from 'vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import { Bell, LogOut, Menu } from 'lucide-vue-next';
+import { computed } from 'vue';
 import { Button } from '@/components/ui/button';
-import { logout } from '@/routes';
 import {
   Sheet,
   SheetContent,
@@ -11,6 +10,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from '@/components/ui/sheet';
+import { logout } from '@/routes';
 
 defineProps<{ title?: string }>();
 

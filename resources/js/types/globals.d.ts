@@ -1,7 +1,7 @@
+import type { AxiosInstance } from 'axios';
+import type Echo from 'laravel-echo';
+import type Pusher from 'pusher-js';
 import type { AppPageProps } from './index';
-import { AxiosInstance } from 'axios';
-import Pusher from 'pusher-js';
-import Echo from 'laravel-echo';
 
 // Extend ImportMeta interface for Vite...
 declare module 'vite/client' {
