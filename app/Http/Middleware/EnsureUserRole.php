@@ -16,7 +16,11 @@ class EnsureUserRole
         $userRole = $request->user()?->role;
 
         if (!$userRole || !in_array($userRole, $roles, true)) {
-            abort(403);
+            if ($request->expectsJson()) {
+                abort(403);
+            }
+
+            return redirect()->route('tareas.mis');
         }
 
         return $next($request);

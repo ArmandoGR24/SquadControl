@@ -39,7 +39,9 @@ const { tareas, lideres } = defineProps<{ tareas: Tarea[]; lideres: Lider[] }>()
 
 const isCreateOpen = ref(false);
 const isEditOpen = ref(false);
+const isDeleteConfirmOpen = ref(false);
 const editingTaskId = ref<number | null>(null);
+const taskToDelete = ref<Tarea | null>(null);
 const activeTab = ref<'list' | 'edit'>('list');
 
 const selectedTask = computed(() =>
@@ -62,6 +64,8 @@ const editForm = useForm({
     status_comment: '',
 });
 
+const deleteForm = useForm({});
+
 const reviewForm = useForm({
     status: 'Completada' as Tarea['estado'],
     status_comment: '',
@@ -69,7 +73,7 @@ const reviewForm = useForm({
 });
 
 const evidenceForm = useForm({
-    evidence: null as File | null,
+    evidences: [] as File[],
     comment: '',
 });
 
@@ -84,29 +88,38 @@ const triggerReviewEvidencePicker = () => {
     reviewEvidenceInputRef.value?.click();
 };
 
-const setEvidenceFile = async (file: File | null) => {
+const setEvidenceFiles = async (files: FileList | null) => {
     evidenceForm.clearErrors('evidence');
-    if (!file) {
-        evidenceForm.evidence = null;
+    evidenceForm.clearErrors('evidences');
+
+    if (!files || files.length === 0) {
+        evidenceForm.evidences = [];
         return;
     }
 
-    const validationError = validateEvidenceFile(file);
-    if (validationError) {
-        evidenceForm.evidence = null;
-        evidenceForm.setError('evidence', validationError);
-        return;
+    const selectedFiles = Array.from(files);
+    const optimizedFiles: File[] = [];
+
+    for (const file of selectedFiles) {
+        const validationError = validateEvidenceFile(file);
+        if (validationError) {
+            evidenceForm.evidences = [];
+            evidenceForm.setError('evidences', `${validationError} Archivo: ${file.name}`);
+            return;
+        }
+
+        const optimizedFile = await optimizeEvidenceFile(file);
+        const optimizedValidationError = validateEvidenceFile(optimizedFile);
+        if (optimizedValidationError) {
+            evidenceForm.evidences = [];
+            evidenceForm.setError('evidences', `${optimizedValidationError} Archivo: ${optimizedFile.name}`);
+            return;
+        }
+
+        optimizedFiles.push(optimizedFile);
     }
 
-    const optimizedFile = await optimizeEvidenceFile(file);
-    const optimizedValidationError = validateEvidenceFile(optimizedFile);
-    if (optimizedValidationError) {
-        evidenceForm.evidence = null;
-        evidenceForm.setError('evidence', optimizedValidationError);
-        return;
-    }
-
-    evidenceForm.evidence = optimizedFile;
+    evidenceForm.evidences = optimizedFiles;
 };
 
 const setReviewEvidenceFile = async (file: File | null) => {
@@ -190,13 +203,16 @@ const submitEdit = () => {
 };
 
 const submitEvidence = () => {
-    if (!editingTaskId.value || !evidenceForm.evidence) return;
+    if (!editingTaskId.value || evidenceForm.evidences.length === 0) return;
     evidenceForm.post(`/tareas/${editingTaskId.value}/evidencias`, {
         preserveScroll: true,
         forceFormData: true,
         onSuccess: () => {
             evidenceForm.reset();
             evidenceForm.clearErrors();
+            if (evidenceInputRef.value) {
+                evidenceInputRef.value.value = '';
+            }
         },
     });
 };
@@ -217,10 +233,30 @@ const submitReview = (status: 'Completada' | 'En progreso') => {
     });
 };
 
-const deleteTask = (tarea: Tarea) => {
-    if (!confirm(`Eliminar la tarea ${tarea.nombre}?`)) return;
-    router.delete(`/tareas/${tarea.id}`, {
+const openDeleteConfirm = (tarea: Tarea) => {
+    taskToDelete.value = tarea;
+    isDeleteConfirmOpen.value = true;
+};
+
+const closeDeleteConfirm = () => {
+    if (deleteForm.processing) return;
+    isDeleteConfirmOpen.value = false;
+    taskToDelete.value = null;
+};
+
+const confirmDeleteTask = () => {
+    if (!taskToDelete.value) return;
+
+    const deletingTaskId = taskToDelete.value.id;
+
+    deleteForm.delete(`/tareas/${deletingTaskId}`, {
         preserveScroll: true,
+        onSuccess: () => {
+            if (editingTaskId.value === deletingTaskId) {
+                closeEdit();
+            }
+            closeDeleteConfirm();
+        },
     });
 };
 
@@ -414,7 +450,7 @@ watch(
                             <button
                                 type="button"
                                 class="h-9 w-full rounded-md bg-destructive/10 text-sm font-medium text-destructive"
-                                @click="deleteTask(tarea)"
+                                @click="openDeleteConfirm(tarea)"
                             >
                                 Eliminar
                             </button>
@@ -479,7 +515,7 @@ watch(
                                     <button
                                         type="button"
                                         class="ml-2 rounded-md px-2 py-1 text-sm font-medium text-destructive hover:bg-destructive/10"
-                                        @click="deleteTask(tarea)"
+                                        @click="openDeleteConfirm(tarea)"
                                     >
                                         Eliminar
                                     </button>
@@ -776,39 +812,64 @@ watch(
                             <input
                                 ref="evidenceInputRef"
                                 type="file"
+                                multiple
                                 accept="image/*,video/mp4,video/quicktime,video/x-m4v"
                                 class="hidden"
-                                @change="(event) => setEvidenceFile((event.target as HTMLInputElement).files?.[0] ?? null)"
+                                @change="(event) => setEvidenceFiles((event.target as HTMLInputElement).files ?? null)"
                             />
                             <button
                                 type="button"
                                 class="h-9 rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground hover:bg-muted"
                                 @click="triggerEvidencePicker"
                             >
-                                Agregar archivo
+                                Agregar archivos
                             </button>
+                            <p v-if="evidenceForm.evidences.length > 0" class="text-xs text-muted-foreground">
+                                {{ evidenceForm.evidences.length }} archivo(s) seleccionado(s)
+                            </p>
                             <textarea
                                 v-model="evidenceForm.comment"
                                 rows="2"
                                 placeholder="Comentario de evidencia (opcional)"
                                 class="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
                             ></textarea>
-                            <p v-if="evidenceForm.errors.evidence" class="text-xs text-destructive">
-                                {{ evidenceForm.errors.evidence }}
+                            <p v-if="evidenceForm.errors.evidences || evidenceForm.errors.evidence" class="text-xs text-destructive">
+                                {{ evidenceForm.errors.evidences || evidenceForm.errors.evidence }}
                             </p>
+                            <div
+                                v-if="evidenceForm.processing"
+                                class="rounded-md border border-input bg-muted/30 p-3"
+                            >
+                                <div class="flex items-center justify-between text-xs text-muted-foreground">
+                                    <span>Subiendo evidencias multimedia...</span>
+                                    <span>{{ evidenceForm.progress?.percentage ?? 0 }}%</span>
+                                </div>
+                                <div class="mt-2 h-2 w-full overflow-hidden rounded bg-muted">
+                                    <div
+                                        class="h-full bg-primary transition-all"
+                                        :style="{ width: `${evidenceForm.progress?.percentage ?? 0}%` }"
+                                    ></div>
+                                </div>
+                            </div>
+                            <div
+                                v-if="evidenceForm.recentlySuccessful"
+                                class="rounded-md border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-700"
+                            >
+                                Carga completa: las evidencias se subieron correctamente.
+                            </div>
                             <button
                                 type="submit"
                                 class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-60"
-                                :disabled="evidenceForm.processing"
+                                :disabled="evidenceForm.processing || evidenceForm.evidences.length === 0"
                             >
-                                Guardar evidencia
+                                Guardar evidencias
                             </button>
                         </form>
 
                         <div class="mt-4">
                             <div
                                 v-if="selectedTask.evidencias.length > 0"
-                                class="grid grid-cols-2 gap-2 sm:flex sm:snap-x sm:snap-mandatory sm:gap-3 sm:overflow-x-auto sm:pb-2"
+                                class="grid grid-cols-1 gap-2 sm:flex sm:snap-x sm:snap-mandatory sm:gap-3 sm:overflow-x-auto sm:pb-2"
                             >
                                 <button
                                     v-for="evidencia in selectedTask.evidencias"
@@ -839,7 +900,7 @@ watch(
                                         alt="Evidencia"
                                         class="mt-2 h-20 w-full rounded-md object-cover sm:h-28"
                                     />
-                                    <p class="mt-2 line-clamp-1 text-[10px] text-muted-foreground sm:text-xs">
+                                    <p class="mt-2 line-clamp-2 break-words text-[10px] text-muted-foreground sm:text-xs">
                                         {{ evidencia.comentario || 'Sin comentario.' }}
                                     </p>
                                 </button>
@@ -1000,6 +1061,42 @@ watch(
                         <p class="mt-2">
                             {{ selectedMedia.comentario || 'Sin comentario.' }}
                         </p>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                v-if="isDeleteConfirmOpen && taskToDelete"
+                class="fixed inset-0 z-[75] flex items-center justify-center bg-black/50 p-4"
+                @click.self="closeDeleteConfirm"
+            >
+                <div class="w-full max-w-md rounded-xl bg-background p-5 shadow-lg">
+                    <h3 class="text-lg font-semibold text-foreground">Confirmar eliminación</h3>
+                    <p class="mt-2 text-sm text-muted-foreground">
+                        Vas a eliminar la tarea
+                        <span class="font-medium text-foreground">"{{ taskToDelete.nombre }}"</span>.
+                    </p>
+                    <p class="mt-2 text-sm text-muted-foreground">
+                        También se eliminarán sus evidencias y archivos multimedia para liberar espacio.
+                    </p>
+
+                    <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <button
+                            type="button"
+                            class="h-9 rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground hover:bg-muted"
+                            :disabled="deleteForm.processing"
+                            @click="closeDeleteConfirm"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            class="h-9 rounded-md bg-destructive px-4 text-sm font-medium text-destructive-foreground hover:bg-destructive/90 disabled:opacity-60"
+                            :disabled="deleteForm.processing"
+                            @click="confirmDeleteTask"
+                        >
+                            {{ deleteForm.processing ? 'Eliminando...' : 'Eliminar tarea' }}
+                        </button>
                     </div>
                 </div>
             </div>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Form, Head, Link } from '@inertiajs/vue3';
+import { Form, Head, Link, usePage } from '@inertiajs/vue3';
 import AppLogoIcon from '@/components/AppLogoIcon.vue';
 import InputError from '@/components/InputError.vue';
 import TextLink from '@/components/TextLink.vue';
@@ -16,6 +16,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Spinner } from '@/components/ui/spinner';
 import { Download } from 'lucide-vue-next';
+import { saveFCMTokenForced } from '@/composables/useFCMToken';
+import { refreshFirebaseMessagingToken } from '@/lib/firebase';
 import { dashboard, register } from '@/routes';
 import { store } from '@/routes/login';
 import { request } from '@/routes/password';
@@ -40,6 +42,50 @@ const props = withDefaults(
 
 const installPromptEvent = ref<BeforeInstallPromptEvent | null>(null);
 const installFeedback = ref('');
+const page = usePage();
+
+const userRole = computed(() => (page.props.auth?.user as { role?: string } | null)?.role ?? '');
+
+const redirectHref = computed(() => {
+    if (userRole.value === 'Lider de Cuadrilla') {
+        return '/mis-tareas';
+    }
+
+    if (['Admin', 'RH', 'Supervisor'].includes(userRole.value)) {
+        return dashboard().url;
+    }
+
+    return '/checkin';
+});
+
+const redirectLabel = computed(() => {
+    if (userRole.value === 'Lider de Cuadrilla') {
+        return 'Ir a mis tareas';
+    }
+
+    if (['Admin', 'RH', 'Supervisor'].includes(userRole.value)) {
+        return 'Ir al tablero';
+    }
+
+    return 'Ir a check-in';
+});
+
+const handleLoginSuccess = async () => {
+    setTimeout(async () => {
+        try {
+            const result = await refreshFirebaseMessagingToken();
+
+            if (!result?.token) {
+                return;
+            }
+
+            await saveFCMTokenForced(result.token, true, result.previousToken ?? null);
+            localStorage.setItem('fcm_token', result.token);
+        } catch (error) {
+            console.warn('[Welcome] FCM token refresh after login failed:', error);
+        }
+    }, 1200);
+};
 
 const isIos = computed(() => {
     if (typeof navigator === 'undefined') {
@@ -141,7 +187,7 @@ onUnmounted(() => {
                             Ya tienes una sesión activa.
                         </p>
                         <Button as-child class="w-full">
-                            <Link :href="dashboard()">Ir al dashboard</Link>
+                            <Link :href="redirectHref">{{ redirectLabel }}</Link>
                         </Button>
                     </div>
 
@@ -149,6 +195,7 @@ onUnmounted(() => {
                         v-else
                         v-bind="store.form()"
                         :reset-on-success="['password']"
+                        @success="handleLoginSuccess"
                         v-slot="{ errors, processing }"
                         class="space-y-5"
                     >

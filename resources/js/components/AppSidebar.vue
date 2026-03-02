@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { Link } from '@inertiajs/vue3';
+import { Link, usePage } from '@inertiajs/vue3';
 import { BookOpen, Clock, LayoutGrid, User, Bug} from 'lucide-vue-next';
+import { computed } from 'vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
 import {
@@ -16,34 +17,44 @@ import { dashboard } from '@/routes';
 import { type NavItem } from '@/types';
 import AppLogo from './AppLogo.vue';
 
-const mainNavItems: NavItem[] = [
+const page = usePage();
+const isDevMode = computed(() => Boolean((page.props.app as { isDevMode?: boolean } | undefined)?.isDevMode));
+const isAdmin = computed(() => String(page.props.auth?.user?.role ?? '') === 'Admin');
+
+const mainNavItems = computed<NavItem[]>(() => {
+const items: NavItem[] = [
     {
-        title: 'Dashboard',
+        title: 'Tablero',
         href: dashboard(),
         icon: LayoutGrid,
     },
     {
         title: 'Usuarios',
-        href: 'usuarios',
+        href: '/usuarios',
         icon: User,
     },
     {
         title: 'Tareas',
-        href: 'tareas',
+        href: '/tareas',
         icon: BookOpen,
     },
     {
-        title: 'Checkins',
-        href: 'checkins-admin',
+        title: 'Check-ins',
+        href: '/checkins-admin',
         icon: Clock,
-    },
-    
-    {
-        title: 'Debug FCM',
-        href: 'fcm/debug',
-        icon: Bug,
     }
 ];
+
+if (isDevMode.value && isAdmin.value) {
+    items.push({
+        title: 'Diagnóstico FCM',
+        href: '/fcm/debug',
+        icon: Bug,
+    });
+}
+
+return items;
+});
 
 </script>
 

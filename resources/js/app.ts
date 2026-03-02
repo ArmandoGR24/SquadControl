@@ -4,13 +4,14 @@ import type { DefineComponent } from 'vue';
 import { createApp, h } from 'vue';
 import '../css/app.css';
 import { initializeTheme } from './composables/useAppearance';
-import { saveFCMToken, retryPendingFCMToken } from './composables/useFCMToken';
+import { saveFCMToken, saveFCMTokenForced, retryPendingFCMToken } from './composables/useFCMToken';
 import Toast, { PluginOptions, POSITION } from "vue-toastification";
 import "vue-toastification/dist/index.css";
 import {
     initializeFirebaseAnalytics,
     initializeFirebaseMessaging,
     onForegroundFirebaseMessage,
+    refreshFirebaseMessagingToken,
 } from './lib/firebase';
 
 
@@ -97,6 +98,24 @@ initializeFirebaseAnalytics().catch((error) => {
 router.on('finish', (event) => {
     // Reintentar guardar token pendiente si hay uno
     retryPendingFCMToken();
+
+    // Además, forzar sincronización de token en cada navegación autenticada.
+    // Esto cubre casos donde no existía pendingToken pero el login sí ocurrió.
+    setTimeout(async () => {
+        try {
+            const result = await refreshFirebaseMessagingToken();
+
+            if (!result?.token) {
+                return;
+            }
+
+            const previousToken = localStorage.getItem('fcm_token');
+            await saveFCMTokenForced(result.token, true, result.previousToken ?? previousToken);
+            localStorage.setItem('fcm_token', result.token);
+        } catch (error) {
+            console.warn('[App] Post-navigation FCM sync failed:', error);
+        }
+    }, 800);
 });
 
 onForegroundFirebaseMessage((payload) => {
@@ -108,6 +127,7 @@ onForegroundFirebaseMessage((payload) => {
 
     if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
         try {
+            const targetUrl = payload.data?.url || '/';
             const notification = new Notification(title, {
                 body,
                 icon: '/pwa-192x192.png',
@@ -116,6 +136,7 @@ onForegroundFirebaseMessage((payload) => {
 
             notification.onclick = () => {
                 window.focus();
+                window.location.href = String(targetUrl);
                 notification.close();
             };
         } catch (error) {

@@ -119,7 +119,7 @@ Route::delete('tareas/{task}', [TareasController::class, 'destroy'])
     ->name('tareas.destroy');
 
 Route::post('tareas/{task}/evidencias', [TareasController::class, 'storeEvidence'])
-    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->middleware(['auth'])
     ->name('tareas.evidencias.store');
 
 Route::patch('tareas/{task}/estado', [TareasController::class, 'updateStatus'])
@@ -161,18 +161,18 @@ Route::get('checkins-admin', [\App\Http\Controllers\CheckinController::class, 'a
 // Firebase Cloud Messaging Routes
 Route::get('fcm/debug', function () {
     return Inertia::render('FCMDebug');
-})->middleware(['auth'])->name('fcm.debug');
+})->middleware(['auth', 'dev-mode'])->name('fcm.debug');
 
 Route::post('fcm/token', [\App\Http\Controllers\FirebaseController::class, 'saveToken'])
     ->middleware(['auth'])
     ->name('fcm.token');
 
 Route::get('fcm/my-tokens', [\App\Http\Controllers\FirebaseController::class, 'myTokens'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'dev-mode'])
     ->name('fcm.my-tokens');
 
 Route::post('fcm/test', [\App\Http\Controllers\FirebaseController::class, 'sendTestNotification'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'dev-mode'])
     ->name('fcm.test');
 
 Route::post('fcm/broadcast', [\App\Http\Controllers\FirebaseController::class, 'sendBroadcast'])

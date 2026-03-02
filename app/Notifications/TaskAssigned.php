@@ -27,6 +27,7 @@ class TaskAssigned extends Notification
         return [
             'type' => 'task_assigned',
             'title' => 'Nueva tarea asignada',
+            'url' => "/mis-tareas/{$this->task->id}",
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
             'status' => $this->task->status,

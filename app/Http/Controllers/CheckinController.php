@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Checkin;
+use App\Models\NotificationSetting;
 use App\Models\User;
 use App\Models\UserFcmToken;
 use App\Services\FirebaseService;
@@ -162,6 +163,7 @@ class CheckinController extends Controller
 
     if ($user?->role === 'Lider de Cuadrilla') {
         $this->notifyRoles(
+                'checkin_registered',
             'Check-in de Lider de Cuadrilla',
             $mensaje,
             ['Admin', 'RH', 'Supervisor'],
@@ -265,6 +267,7 @@ class CheckinController extends Controller
 
             if ($user?->role === 'Lider de Cuadrilla') {
                 $this->notifyRoles(
+                    'checkout_registered',
                     'Check-out de Lider de Cuadrilla',
                     $mensaje,
                     ['Admin', 'RH', 'Supervisor'],
@@ -379,11 +382,34 @@ class CheckinController extends Controller
         ]);
     }
 
-    private function notifyRoles(string $title, string $message, array $roles, array $data = []): void
+    private function notifyRoles(string $eventKey, string $title, string $message, array $roles, array $data = []): void
     {
+        $settings = NotificationSetting::query()->firstOrCreate([], [
+            'event_settings' => NotificationSetting::defaultEventSettings(),
+            'recipient_settings' => NotificationSetting::defaultRecipientSettings(),
+        ]);
+
+        $eventSettings = $settings->resolvedEventSettings();
+        if (!(bool) ($eventSettings[$eventKey] ?? true)) {
+            return;
+        }
+
+        $configuredRoles = collect($settings->resolvedRecipientSettings()[$eventKey] ?? [])
+            ->filter(fn ($role) => in_array($role, NotificationSetting::ROLE_OPTIONS, true))
+            ->values()
+            ->all();
+
+        $targetRoles = !empty($configuredRoles)
+            ? array_values(array_intersect($roles, $configuredRoles))
+            : $roles;
+
+        if (empty($targetRoles)) {
+            return;
+        }
+
         $tokens = UserFcmToken::query()
-            ->whereHas('user', function ($query) use ($roles) {
-                $query->whereIn('role', $roles);
+            ->whereHas('user', function ($query) use ($targetRoles) {
+                $query->whereIn('role', $targetRoles);
             })
             ->pluck('token')
             ->filter()
@@ -393,7 +419,7 @@ class CheckinController extends Controller
 
         if (empty($tokens)) {
             \Log::warning('FCM roles notification skipped: no tokens found.', [
-                'roles' => $roles,
+                'roles' => $targetRoles,
                 'title' => $title,
             ]);
             return;
@@ -418,7 +444,7 @@ class CheckinController extends Controller
 
         if (!($result['success'] ?? false)) {
             \Log::error('FCM roles notification failed.', [
-                'roles' => $roles,
+                'roles' => $targetRoles,
                 'title' => $title,
                 'message' => $result['message'] ?? null,
             ]);

@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAnalytics, isSupported as isAnalyticsSupported } from 'firebase/analytics';
 import {
+    deleteToken,
     getMessaging,
     getToken,
     isSupported as isMessagingSupported,
@@ -135,6 +136,50 @@ export async function initializeFirebaseMessaging() {
     }
 
     return { token, messaging, getMessaging };
+}
+
+export async function refreshFirebaseMessagingToken() {
+    const initialized = await initializeFirebaseMessaging();
+
+    if (!initialized) {
+        return null;
+    }
+
+    const vapidKey = import.meta.env.VITE_FIREBASE_VAPID_KEY;
+
+    if (!vapidKey) {
+        return {
+            ...initialized,
+            previousToken: null,
+        };
+    }
+
+    const previousToken = initialized.token;
+
+    try {
+        await deleteToken(initialized.messaging);
+    } catch (error) {
+        console.warn('[Firebase] Could not delete existing token before refresh:', error);
+    }
+
+    try {
+        const refreshedToken = await getToken(initialized.messaging, { vapidKey });
+
+        if (refreshedToken) {
+            return {
+                ...initialized,
+                token: refreshedToken,
+                previousToken,
+            };
+        }
+    } catch (error) {
+        console.warn('[Firebase] Could not refresh token, using current token:', error);
+    }
+
+    return {
+        ...initialized,
+        previousToken,
+    };
 }
 
 /**

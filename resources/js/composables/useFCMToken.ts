@@ -37,8 +37,21 @@ async function parseResponseSafely(response: Response): Promise<any> {
 /**
  * Guarda el token FCM en el backend
  */
-export async function saveFCMToken(token: string): Promise<boolean> {
+export async function saveFCMToken(token: string, previousToken: string | null = null): Promise<boolean> {
     if (tokenSaved.value) {
+        console.info('✅ FCM token already saved');
+        return true;
+    }
+
+    return saveFCMTokenForced(token, false, previousToken);
+}
+
+export async function saveFCMTokenForced(
+    token: string,
+    force = true,
+    previousToken: string | null = null,
+): Promise<boolean> {
+    if (tokenSaved.value && !force) {
         console.info('✅ FCM token already saved');
         return true;
     }
@@ -60,7 +73,7 @@ export async function saveFCMToken(token: string): Promise<boolean> {
                 'X-CSRF-TOKEN': csrfToken,
                 'Accept': 'application/json',
             },
-            body: JSON.stringify({ token }),
+            body: JSON.stringify({ token, previous_token: previousToken }),
         });
 
         const data = await parseResponseSafely(response);
@@ -95,7 +108,7 @@ export async function saveFCMToken(token: string): Promise<boolean> {
 export async function retryPendingFCMToken(): Promise<void> {
     if (pendingToken.value && !tokenSaved.value) {
         console.info('🔄 Reintentando guardar token FCM pendiente...');
-        await saveFCMToken(pendingToken.value);
+        await saveFCMTokenForced(pendingToken.value, true);
     }
 }
 
@@ -114,6 +127,7 @@ export function isAuthenticated(): boolean {
 export function useFCMToken() {
     return {
         saveFCMToken,
+        saveFCMTokenForced,
         retryPendingFCMToken,
         tokenSaved,
         pendingToken,

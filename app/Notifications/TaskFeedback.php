@@ -36,6 +36,7 @@ class TaskFeedback extends Notification
         return [
             'type' => 'task_feedback',
             'title' => 'Feedback de revisión',
+            'url' => "/mis-tareas/{$this->task->id}",
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
             'feedback' => $this->feedback,

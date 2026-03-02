@@ -13,7 +13,7 @@ return new class extends Migration
     {
         //
         Schema::table('users', function (Blueprint $table) {
-            $table->string('role')->default('user')->after('email');
+            $table->string('role')->default('Empleado')->after('email');
             $table->timestamp('created_at')->nullable()->change();
             $table->timestamp('last_login_at')->nullable()->after('updated_at');
         });

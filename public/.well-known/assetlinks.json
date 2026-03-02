@@ -1,0 +1,14 @@
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "org.codigomaestro.squadcontrol",
+      "sha256_cert_fingerprints": [
+        "66:0A:B6:59:6A:D7:67:07:1B:19:B8:6F:40:11:24:97:75:77:DC:31:6E:96:B2:E8:F5:55:23:C7:71:12:FB:2B"
+      ]
+    }
+  }
+]

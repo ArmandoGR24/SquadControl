@@ -246,11 +246,20 @@ class TareasController extends Controller
         ]);
 
         // Notificar a los líderes cuando se les asigna una tarea
-        $this->notificationService->notifyTaskAssigned(
-            $task,
-            $request->user(),
-            $validated['leader_ids'] ?? []
-        );
+        $leaderIds = $validated['leader_ids'] ?? [];
+
+        if (!empty($leaderIds)) {
+            $this->notificationService->notifyTaskAssigned(
+                $task,
+                $request->user(),
+                $leaderIds
+            );
+        } else {
+            $this->notificationService->notifyTaskPublished(
+                $task,
+                $request->user(),
+            );
+        }
 
         return redirect()->back();
     }
@@ -301,6 +310,14 @@ class TareasController extends Controller
                     $request->user(),
                     $task->leaders()->pluck('users.id')->toArray()
                 );
+
+                if ($validated['status'] === 'Completada') {
+                    $this->notificationService->notifyTaskCompleted(
+                        $task,
+                        $validated['status_comment'] ?? null,
+                        $request->user(),
+                    );
+                }
             }
         }
 
@@ -309,6 +326,18 @@ class TareasController extends Controller
 
     public function destroy(Task $task)
     {
+        $evidencePaths = $task->evidences()
+            ->pluck('path')
+            ->filter()
+            ->values();
+
+        if ($evidencePaths->isNotEmpty()) {
+            Storage::disk('public')->delete($evidencePaths->all());
+        }
+
+        $task->evidences()->delete();
+        $task->statusHistories()->delete();
+        $task->leaders()->detach();
         $task->delete();
 
         return redirect()->back();
@@ -316,23 +345,56 @@ class TareasController extends Controller
 
     public function storeEvidence(Request $request, Task $task)
     {
+        $user = $request->user();
+        $userId = $user?->id;
+        $isLeader = $user?->role === 'Lider de Cuadrilla';
+        $isAssigned = $task->leaders()->where('users.id', $userId)->exists();
+
+        if (!$isAssigned && !$isLeader) {
+            abort(403);
+        }
+
+        if ($isLeader && !$isAssigned && $userId) {
+            $task->leaders()->syncWithoutDetaching([$userId]);
+        }
+
         $validated = $request->validate([
             'evidence' => [
-                'required',
+                'nullable',
+                'file',
+                'required_without:evidences',
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v',
+                'max:256000',
+            ],
+            'evidences' => ['nullable', 'array', 'required_without:evidence'],
+            'evidences.*' => [
                 'file',
                 'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v',
-                'max:20480',
+                'max:256000',
             ],
             'comment' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $path = $validated['evidence']->store('task-evidences', 'public');
+        $files = [];
 
-        $task->evidences()->create([
-            'user_id' => $request->user()?->id,
-            'path' => $path,
-            'comment' => $validated['comment'] ?? null,
-        ]);
+        if ($request->hasFile('evidences')) {
+            $files = $request->file('evidences');
+        } elseif ($request->hasFile('evidence')) {
+            $singleEvidence = $request->file('evidence');
+            if ($singleEvidence) {
+                $files = [$singleEvidence];
+            }
+        }
+
+        foreach ($files as $file) {
+            $path = $file->store('task-evidences', 'public');
+
+            $task->evidences()->create([
+                'user_id' => $request->user()?->id,
+                'path' => $path,
+                'comment' => $validated['comment'] ?? null,
+            ]);
+        }
 
         // Notificar sobre la nueva evidencia
         $this->notificationService->notifyEvidenceAdded(
@@ -417,7 +479,7 @@ class TareasController extends Controller
                 'nullable',
                 'file',
                 'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v',
-                'max:20480',
+                'max:256000',
             ],
         ]);
 

@@ -25,9 +25,14 @@ class EvidenceAdded extends Notification
 
     public function toDatabase(object $notifiable): array
     {
+        $targetUrl = in_array($notifiable->role ?? '', ['Admin', 'Supervisor', 'RH'], true)
+            ? '/tareas'
+            : "/mis-tareas/{$this->task->id}";
+
         return [
             'type' => 'evidence_added',
             'title' => 'Nueva evidencia agregada',
+            'url' => $targetUrl,
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
             'comment' => $this->comment,

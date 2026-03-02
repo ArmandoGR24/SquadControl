@@ -100,6 +100,9 @@ self.addEventListener('notificationclick', (event) => {
     // Acciones específicas según qué botón se clickeó
     if (event.action === 'open' || event.action === '') {
         console.log('[SW] Opening or focusing main window');
+
+        const targetPath = event.notification?.data?.url || '/';
+        const targetUrl = new URL(targetPath, self.location.origin).href;
         
         // Esperar a que los clientes se abran o enfoquen
         event.waitUntil(
@@ -108,7 +111,7 @@ self.addEventListener('notificationclick', (event) => {
                 
                 // Buscar un cliente ya abierto
                 for (const client of clientList) {
-                    if (client.url === '/' || client.url.includes('localhost') || client.url.includes('127.0.0.1')) {
+                    if (client.url === targetUrl) {
                         console.log('[SW] Focusing existing client');
                         client.focus();
                         return;
@@ -118,7 +121,7 @@ self.addEventListener('notificationclick', (event) => {
                 // Si no hay cliente abierto, abrir uno nuevo
                 if (self.clients.openWindow) {
                     console.log('[SW] Opening new window');
-                    return self.clients.openWindow('/');
+                    return self.clients.openWindow(targetUrl);
                 }
             })
         );

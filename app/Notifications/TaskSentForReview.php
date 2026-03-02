@@ -26,6 +26,8 @@ class TaskSentForReview extends Notification
     {
         return [
             'type' => 'task_review_requested',
+            'title' => 'Tarea enviada a revisión',
+            'url' => '/tareas',
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
             'status' => $this->task->status,

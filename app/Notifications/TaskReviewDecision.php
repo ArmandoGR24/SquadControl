@@ -28,6 +28,8 @@ class TaskReviewDecision extends Notification
     {
         return [
             'type' => 'task_review_decision',
+            'title' => 'Decisión de revisión',
+            'url' => "/mis-tareas/{$this->task->id}",
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
             'decision' => $this->decision,

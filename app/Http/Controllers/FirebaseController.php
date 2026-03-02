@@ -24,6 +24,7 @@ class FirebaseController extends Controller
         $request->validate([
             'token' => 'required|string|max:512',
             'device_name' => 'nullable|string|max:255',
+            'previous_token' => 'nullable|string|max:512',
         ]);
 
         $user = Auth::user();
@@ -35,19 +36,50 @@ class FirebaseController extends Controller
             ], 401);
         }
 
+        $deviceUserAgent = $request->userAgent();
+        $newToken = trim((string) $request->token);
+        $previousToken = trim((string) ($request->input('previous_token') ?? ''));
+
+        if ($newToken === '') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Token FCM inválido',
+            ], 422);
+        }
+
+        UserFcmToken::query()
+            ->where('user_id', $user->id)
+            ->where('device_user_agent', $deviceUserAgent)
+            ->where('token', '!=', $newToken)
+            ->delete();
+
+        if ($previousToken !== '' && $previousToken !== $newToken) {
+            UserFcmToken::query()
+                ->where('user_id', $user->id)
+                ->where('token', $previousToken)
+                ->delete();
+        }
+
         UserFcmToken::updateOrCreate(
-            ['token' => $request->token],
+            ['token' => $newToken],
             [
                 'user_id' => $user->id,
                 'device_name' => $request->device_name,
-                'device_user_agent' => $request->userAgent(),
+                'device_user_agent' => $deviceUserAgent,
                 'last_used_at' => now(),
             ]
         );
 
+        $removedExpiredTokens = UserFcmToken::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('last_used_at')
+            ->where('last_used_at', '<', now()->subDays(45))
+            ->delete();
+
         return response()->json([
             'success' => true,
             'message' => 'Token FCM guardado correctamente',
+            'removed_expired_tokens' => $removedExpiredTokens,
         ]);
     }
 

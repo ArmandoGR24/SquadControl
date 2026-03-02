@@ -30,6 +30,7 @@ class TaskStatusChanged extends Notification
         return [
             'type' => 'task_status_changed',
             'title' => 'Estado de tarea actualizado',
+            'url' => "/mis-tareas/{$this->task->id}",
             'task_id' => $this->task->id,
             'task_name' => $this->task->name,
             'previous_status' => $this->previousStatus,
