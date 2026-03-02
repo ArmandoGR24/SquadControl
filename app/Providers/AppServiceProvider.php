@@ -29,7 +29,7 @@ class AppServiceProvider extends ServiceProvider
 
     protected function configureDefaults(): void
     {
-        if (! app()->isLocal()) {
+        if (! app()->isLocal() && ! app()->environment('testing')) {
             URL::forceScheme('https');
         }
 
