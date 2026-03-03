@@ -18,6 +18,165 @@ import {
 
 const appName = import.meta.env.VITE_APP_NAME || 'Laravel';
 
+const setupPullToRefresh = () => {
+    if (typeof window === 'undefined') return;
+
+    const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    if (!isTouchDevice) return;
+
+    let startY = 0;
+    let pullDistance = 0;
+    let isPulling = false;
+    let shouldRefresh = false;
+    let isRefreshing = false;
+    let hapticTriggered = false;
+    let activeScrollContainer: HTMLElement | null = null;
+
+    const minPullDistance = 55;
+    const maxIndicatorTravel = 88;
+
+    const indicator = document.createElement('div');
+    indicator.className = 'pull-refresh-indicator';
+    indicator.setAttribute('aria-hidden', 'true');
+    document.body.appendChild(indicator);
+
+    const setIndicatorState = (distance: number, armed: boolean) => {
+        const clamped = Math.max(0, Math.min(distance, maxIndicatorTravel));
+        const opacity = Math.min(1, clamped / minPullDistance);
+
+        indicator.style.setProperty('--pull-distance', `${clamped}px`);
+        indicator.style.setProperty('--pull-opacity', opacity.toString());
+        indicator.classList.toggle('is-visible', clamped > 0);
+        indicator.classList.toggle('is-armed', armed);
+    };
+
+    const resetIndicator = () => {
+        indicator.style.setProperty('--pull-distance', '0px');
+        indicator.style.setProperty('--pull-opacity', '0');
+        indicator.classList.remove('is-visible', 'is-armed', 'is-refreshing');
+    };
+
+    const getScrollableAncestor = (node: HTMLElement | null): HTMLElement | null => {
+        let current = node;
+
+        while (current && current !== document.body) {
+            const style = window.getComputedStyle(current);
+            const overflowY = style.overflowY;
+            const canScroll = /(auto|scroll|overlay)/.test(overflowY);
+
+            if (canScroll && current.scrollHeight > current.clientHeight) {
+                return current;
+            }
+
+            current = current.parentElement;
+        }
+
+        return null;
+    };
+
+    const canStartPull = (event: TouchEvent) => {
+        if (event.touches.length !== 1) return false;
+
+        const target = event.target as HTMLElement | null;
+        if (
+            target?.closest(
+                'input, textarea, select, [contenteditable="true"], video, iframe, [data-no-pull-refresh="true"]',
+            )
+        ) {
+            return false;
+        }
+
+        activeScrollContainer = getScrollableAncestor(target);
+
+        if (activeScrollContainer) {
+            return activeScrollContainer.scrollTop <= 0;
+        }
+
+        return window.scrollY <= 0;
+    };
+
+    const onTouchStart = (event: TouchEvent) => {
+        isPulling = false;
+        shouldRefresh = false;
+        hapticTriggered = false;
+        pullDistance = 0;
+        activeScrollContainer = null;
+        resetIndicator();
+
+        if (!canStartPull(event)) return;
+
+        startY = event.touches[0].clientY;
+        isPulling = true;
+    };
+
+    const onTouchMove = (event: TouchEvent) => {
+        if (!isPulling) return;
+
+        if (activeScrollContainer && activeScrollContainer.scrollTop > 0) {
+            isPulling = false;
+            shouldRefresh = false;
+            return;
+        }
+
+        if (!activeScrollContainer && window.scrollY > 0) {
+            isPulling = false;
+            shouldRefresh = false;
+            return;
+        }
+
+        const currentY = event.touches[0]?.clientY ?? startY;
+        pullDistance = currentY - startY;
+
+        if (pullDistance <= 0) {
+            shouldRefresh = false;
+            setIndicatorState(0, false);
+            return;
+        }
+
+        shouldRefresh = pullDistance >= minPullDistance;
+        setIndicatorState(pullDistance, shouldRefresh);
+
+        if (shouldRefresh && !hapticTriggered && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+            navigator.vibrate(10);
+            hapticTriggered = true;
+        }
+
+        if (!shouldRefresh) {
+            hapticTriggered = false;
+        }
+
+        event.preventDefault();
+    };
+
+    const onTouchEnd = () => {
+        if (!isPulling) return;
+
+        if (shouldRefresh && !isRefreshing) {
+            isRefreshing = true;
+            indicator.classList.add('is-refreshing');
+            router.reload({
+                onFinish: () => {
+                    isRefreshing = false;
+                    resetIndicator();
+                },
+            });
+        } else {
+            resetIndicator();
+        }
+
+        isPulling = false;
+        shouldRefresh = false;
+        hapticTriggered = false;
+        pullDistance = 0;
+        activeScrollContainer = null;
+    };
+
+    window.addEventListener('touchstart', onTouchStart, { passive: true });
+    window.addEventListener('touchmove', onTouchMove, { passive: false });
+    window.addEventListener('touchend', onTouchEnd, { passive: true });
+    window.addEventListener('touchcancel', onTouchEnd, { passive: true });
+};
+
 const options: PluginOptions = {
     position: POSITION.TOP_RIGHT,
     timeout: 3000,
@@ -54,6 +213,7 @@ createInertiaApp({
 
 // This will set light / dark mode on page load...
 initializeTheme();
+setupPullToRefresh();
 
 initializeFirebaseAnalytics().catch((error) => {
     console.error('Firebase Analytics initialization failed:', error);

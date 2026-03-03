@@ -13,9 +13,7 @@ class FirebaseService
 {
     protected $messaging = null;
 
-    public function __construct()
-    {
-    }
+    public function __construct() {}
 
     private function initializeMessaging(): void
     {
@@ -25,8 +23,8 @@ class FirebaseService
 
         $serviceAccountPath = storage_path('app/firebase-service-account.json');
 
-        if (!file_exists($serviceAccountPath)) {
-            throw new \Exception('Firebase service account file not found at: ' . $serviceAccountPath);
+        if (! file_exists($serviceAccountPath)) {
+            throw new \Exception('Firebase service account file not found at: '.$serviceAccountPath);
         }
 
         $factory = (new Factory)->withServiceAccount($serviceAccountPath);
@@ -67,13 +65,13 @@ class FirebaseService
         ];
 
         foreach ($candidates as $candidate) {
-            if (!is_string($candidate) || trim($candidate) === '') {
+            if (! is_string($candidate) || trim($candidate) === '') {
                 continue;
             }
 
             $path = trim($candidate, "\"' ");
 
-            if (!str_contains($path, ':') && !str_starts_with($path, DIRECTORY_SEPARATOR)) {
+            if (! str_contains($path, ':') && ! str_starts_with($path, DIRECTORY_SEPARATOR)) {
                 $path = base_path($path);
             }
 
@@ -88,10 +86,10 @@ class FirebaseService
     /**
      * Envía una notificación push a un token FCM específico
      *
-     * @param string $token Token FCM del dispositivo
-     * @param string $title Título de la notificación
-     * @param string $body Cuerpo de la notificación
-     * @param array $data Datos adicionales (opcional)
+     * @param  string  $token  Token FCM del dispositivo
+     * @param  string  $title  Título de la notificación
+     * @param  string  $body  Cuerpo de la notificación
+     * @param  array  $data  Datos adicionales (opcional)
      * @return array Resultado del envío
      */
     public function sendNotification(string $token, string $title, string $body, array $data = []): array
@@ -105,7 +103,7 @@ class FirebaseService
                 ->withToken($token)
                 ->withNotification($notification);
 
-            if (!empty($data)) {
+            if (! empty($data)) {
                 $message = $message->withData($data);
             }
 
@@ -118,7 +116,7 @@ class FirebaseService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Failed to send notification: ' . $e->getMessage(),
+                'message' => 'Failed to send notification: '.$e->getMessage(),
             ];
         }
     }
@@ -126,10 +124,10 @@ class FirebaseService
     /**
      * Envía notificación a múltiples tokens
      *
-     * @param array $tokens Array de tokens FCM
-     * @param string $title Título de la notificación
-     * @param string $body Cuerpo de la notificación
-     * @param array $data Datos adicionales
+     * @param  array  $tokens  Array de tokens FCM
+     * @param  string  $title  Título de la notificación
+     * @param  string  $body  Cuerpo de la notificación
+     * @param  array  $data  Datos adicionales
      * @return array Resultados del envío
      */
     public function sendMulticast(array $tokens, string $title, string $body, array $data = []): array
@@ -142,7 +140,7 @@ class FirebaseService
             $message = CloudMessage::new()
                 ->withNotification($notification);
 
-            if (!empty($data)) {
+            if (! empty($data)) {
                 $message = $message->withData($data);
             }
 
@@ -173,7 +171,7 @@ class FirebaseService
         } catch (\Exception $e) {
             return [
                 'success' => false,
-                'message' => 'Failed to send multicast: ' . $e->getMessage(),
+                'message' => 'Failed to send multicast: '.$e->getMessage(),
             ];
         }
     }
@@ -181,14 +179,14 @@ class FirebaseService
     /**
      * Valida si un token FCM es válido
      *
-     * @param string $token Token FCM a validar
-     * @return bool
+     * @param  string  $token  Token FCM a validar
      */
     public function validateToken(string $token): bool
     {
         try {
             $this->initializeMessaging();
             $this->messaging->validateRegistrationTokens([$token]);
+
             return true;
         } catch (\Exception $e) {
             return false;

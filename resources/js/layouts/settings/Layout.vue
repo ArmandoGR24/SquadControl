@@ -41,6 +41,11 @@ const sidebarNavItems = computed<NavItem[]>(() => {
             title: 'Notificaciones',
             href: '/settings/notifications',
         });
+
+        items.push({
+            title: 'Check-ins',
+            href: '/settings/checkins',
+        });
     }
 
     return items;

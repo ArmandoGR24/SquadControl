@@ -16,8 +16,7 @@ class TaskFeedback extends Notification
         private readonly string $feedback,
         private readonly ?string $comment,
         private readonly ?User $feedbackFrom,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

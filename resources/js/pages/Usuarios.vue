@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, router, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 
 type Usuario = {
@@ -16,6 +16,12 @@ const { usuarios } = defineProps<{ usuarios: Usuario[] }>();
 const isEditOpen = ref(false);
 const editingUserId = ref<number | null>(null);
 const isCreateOpen = ref(false);
+const mobileView = ref<'list' | 'detail'>('list');
+const selectedMobileUserId = ref<number | null>(null);
+
+const selectedMobileUser = computed(() =>
+  usuarios.find((usuario) => usuario.id === selectedMobileUserId.value) ?? null,
+);
 
 const form = useForm({
   name: '',
@@ -33,14 +39,32 @@ const createForm = useForm({
   status: 'Activo' as 'Activo' | 'Inactivo',
 });
 
-const openEdit = (usuario: Usuario) => {
+const selectUserForEdit = (usuario: Usuario) => {
   editingUserId.value = usuario.id;
   form.name = usuario.nombre;
   form.email = usuario.email;
   form.role = usuario.rol;
   form.status = usuario.estado;
   form.clearErrors();
+};
+
+const openEdit = (usuario: Usuario) => {
+  selectUserForEdit(usuario);
   isEditOpen.value = true;
+};
+
+const openMobileDetail = (usuario: Usuario) => {
+  selectedMobileUserId.value = usuario.id;
+  selectUserForEdit(usuario);
+  mobileView.value = 'detail';
+};
+
+const backToMobileList = () => {
+  mobileView.value = 'list';
+  selectedMobileUserId.value = null;
+  editingUserId.value = null;
+  form.reset();
+  form.clearErrors();
 };
 
 const closeEdit = () => {
@@ -70,6 +94,13 @@ const submitEdit = () => {
   });
 };
 
+const submitMobileUpdate = () => {
+  if (!editingUserId.value) return;
+  form.put(`/usuarios/${editingUserId.value}`, {
+    preserveScroll: true,
+  });
+};
+
 const submitCreate = () => {
   createForm.post('/usuarios', {
     preserveScroll: true,
@@ -77,11 +108,19 @@ const submitCreate = () => {
   });
 };
 
-const deleteUser = (usuario: Usuario) => {
+const deleteUser = (usuario: Usuario, onSuccess?: () => void) => {
   if (!confirm(`Eliminar al usuario ${usuario.nombre}?`)) return;
   router.delete(`/usuarios/${usuario.id}`, {
     preserveScroll: true,
+    onSuccess: () => {
+      onSuccess?.();
+    },
   });
+};
+
+const deleteCurrentMobileUser = () => {
+  if (!selectedMobileUser.value) return;
+  deleteUser(selectedMobileUser.value, () => backToMobileList());
 };
 </script>
 
@@ -255,7 +294,121 @@ const deleteUser = (usuario: Usuario) => {
         </div>
       </div>
 
-      <div class="overflow-x-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border">
+      <div class="grid gap-3 sm:hidden">
+        <template v-if="mobileView === 'list'">
+          <button
+            v-for="usuario in usuarios"
+            :key="usuario.id"
+            type="button"
+            class="rounded-xl border border-sidebar-border/70 bg-background p-4 text-left shadow-sm"
+            @click="openMobileDetail(usuario)"
+          >
+            <div class="flex items-center justify-between gap-3">
+              <p class="text-base font-semibold text-foreground">
+                {{ usuario.nombre }}
+              </p>
+              <span class="text-xs text-muted-foreground">Ver</span>
+            </div>
+            <p class="mt-1 text-xs text-muted-foreground">
+              {{ usuario.rol || 'Sin rol' }}
+            </p>
+          </button>
+
+          <div
+            v-if="usuarios.length === 0"
+            class="rounded-xl border border-dashed border-sidebar-border/70 p-6 text-center text-sm text-muted-foreground"
+          >
+            No hay usuarios para mostrar.
+          </div>
+        </template>
+
+        <template v-else-if="selectedMobileUser">
+          <div class="rounded-xl border border-sidebar-border/70 bg-background p-4 shadow-sm">
+            <button
+              type="button"
+              class="mb-3 text-sm font-medium text-primary"
+              @click="backToMobileList"
+            >
+              Volver a la lista
+            </button>
+
+            <h2 class="text-lg font-semibold text-foreground">{{ selectedMobileUser.nombre }}</h2>
+            <p class="text-xs text-muted-foreground">Detalle del usuario</p>
+
+            <form class="mt-4 grid gap-4" @submit.prevent="submitMobileUpdate">
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground" for="mobile-name">Nombre</label>
+                <input
+                  id="mobile-name"
+                  v-model="form.name"
+                  type="text"
+                  class="h-10 rounded-md border border-input bg-background px-3 text-base text-foreground shadow-sm outline-none transition focus:border-primary"
+                />
+                <p v-if="form.errors.name" class="text-xs text-destructive">{{ form.errors.name }}</p>
+              </div>
+
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground" for="mobile-email">Email</label>
+                <input
+                  id="mobile-email"
+                  v-model="form.email"
+                  type="email"
+                  class="h-10 rounded-md border border-input bg-background px-3 text-base text-foreground shadow-sm outline-none transition focus:border-primary"
+                />
+                <p v-if="form.errors.email" class="text-xs text-destructive">{{ form.errors.email }}</p>
+              </div>
+
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground" for="mobile-role">Rol</label>
+                <select
+                  id="mobile-role"
+                  v-model="form.role"
+                  class="h-10 rounded-md border border-input bg-background px-3 text-base text-foreground shadow-sm outline-none transition focus:border-primary"
+                >
+                  <option value="Admin">Admin</option>
+                  <option value="Supervisor">Supervisor</option>
+                  <option value="RH">RH</option>
+                  <option value="Lider de Cuadrilla">Lider de Cuadrilla</option>
+                  <option value="Empleado">Empleado</option>
+                </select>
+                <p v-if="form.errors.role" class="text-xs text-destructive">{{ form.errors.role }}</p>
+              </div>
+
+              <div class="grid gap-2">
+                <label class="text-sm font-medium text-foreground" for="mobile-status">Estado</label>
+                <select
+                  id="mobile-status"
+                  v-model="form.status"
+                  class="h-10 rounded-md border border-input bg-background px-3 text-base text-foreground shadow-sm outline-none transition focus:border-primary"
+                >
+                  <option value="Activo">Activo</option>
+                  <option value="Inactivo">Inactivo</option>
+                </select>
+                <p v-if="form.errors.status" class="text-xs text-destructive">{{ form.errors.status }}</p>
+              </div>
+
+              <div class="grid gap-2">
+                <button
+                  type="submit"
+                  class="h-10 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-60"
+                  :disabled="form.processing"
+                >
+                  Guardar cambios
+                </button>
+                <button
+                  type="button"
+                  class="h-10 rounded-md bg-destructive/10 px-4 text-sm font-medium text-destructive"
+                  @click="deleteCurrentMobileUser"
+                >
+                  Eliminar usuario
+                </button>
+              </div>
+            </form>
+          </div>
+        </template>
+      </div>
+
+      <div class="hidden overflow-x-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border sm:block">
         <table class="min-w-full divide-y divide-border">
           <thead class="bg-muted/50">
             <tr>

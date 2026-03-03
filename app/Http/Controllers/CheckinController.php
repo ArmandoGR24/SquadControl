@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Events\notificationsTask;
 use App\Models\Checkin;
+use App\Models\CheckinSetting;
 use App\Models\NotificationSetting;
 use App\Models\User;
 use App\Models\UserFcmToken;
@@ -10,12 +12,9 @@ use App\Services\FirebaseService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Inertia\Inertia;
-use App\Events\notificationsTask;
 
 class CheckinController extends Controller
 {
-    private const MAX_CHECKIN_HOURS = 4;
-
     private function hasCheckedByColumn(): bool
     {
         static $hasColumn = null;
@@ -29,25 +28,33 @@ class CheckinController extends Controller
 
     public function index(Request $request)
     {
+        $settings = $this->getCheckinSettings();
+
         $authUser = $request->user();
         $userId = $authUser?->id;
         $isLeader = $authUser?->role === 'Lider de Cuadrilla';
+        $leaderBulkEnabled = $isLeader && (bool) $settings['allow_leader_bulk_actions'];
 
-        // Obtener el último checkin del usuario autenticado (modo no líder)
-        $todayCheckin = Checkin::where('user_id', $userId)
-            ->whereDate('check_in_time', today())
+        // Obtener checkins del usuario autenticado (modo no líder)
+        $activeCheckin = Checkin::where('user_id', $userId)
+            ->whereNull('check_out_time')
             ->latest('check_in_time')
             ->first();
 
-        $hasCheckedIn = $todayCheckin && !$todayCheckin->check_out_time;
-        $lastCheckin = $todayCheckin ? [
-            'id' => $todayCheckin->id,
-            'check_in_time' => $todayCheckin->check_in_time->toIso8601String(),
-            'check_out_time' => $todayCheckin->check_out_time?->toIso8601String(),
+        $latestCheckin = Checkin::where('user_id', $userId)
+            ->latest('check_in_time')
+            ->first();
+
+        $hasCheckedIn = (bool) $activeCheckin;
+        $checkinToShow = $activeCheckin ?? $latestCheckin;
+        $lastCheckin = $checkinToShow ? [
+            'id' => $checkinToShow->id,
+            'check_in_time' => $checkinToShow->check_in_time->toIso8601String(),
+            'check_out_time' => $checkinToShow->check_out_time?->toIso8601String(),
         ] : null;
 
         $targetUsers = [];
-        if ($isLeader) {
+        if ($leaderBulkEnabled) {
             $managedUsers = User::query()
                 ->whereIn('role', ['user', 'User', 'Empleado'])
                 ->where('status', 'Activo')
@@ -55,7 +62,6 @@ class CheckinController extends Controller
                 ->get(['id', 'name']);
 
             $activeCheckinUserIds = Checkin::query()
-                ->whereDate('check_in_time', today())
                 ->whereNull('check_out_time')
                 ->whereIn('user_id', $managedUsers->pluck('id'))
                 ->pluck('user_id')
@@ -73,112 +79,19 @@ class CheckinController extends Controller
         return Inertia::render('users/Checkin', [
             'hasCheckedIn' => $hasCheckedIn,
             'lastCheckin' => $lastCheckin,
-            'isLeaderMode' => $isLeader,
+            'isLeaderMode' => $leaderBulkEnabled,
             'targetUsers' => $targetUsers,
+            'minimumCheckoutHours' => (int) $settings['minimum_checkout_hours'],
+            'requireLocation' => (bool) $settings['require_location'],
+            'allowLeaderIncludeSelf' => (bool) $settings['allow_leader_include_self'],
+            'maxTargetsPerAction' => (int) $settings['max_targets_per_action'],
         ]);
     }
 
     public function checkIn(Request $request)
-{
-    $validated = $request->validate([
-        'latitude' => ['nullable', 'numeric'],
-        'longitude' => ['nullable', 'numeric'],
-        'target_user_ids' => ['nullable', 'array'],
-        'target_user_ids.*' => ['integer', 'exists:users,id'],
-        'include_self' => ['nullable', 'boolean'],
-    ]);
-
-    $user = $request->user();
-    $userId = $user?->id;
-
-    $targetUserIds = [];
-
-    if ($user?->role === 'Lider de Cuadrilla') {
-        $allowedUserIds = User::query()
-            ->whereIn('role', ['user', 'User', 'Empleado'])
-            ->where('status', 'Activo')
-            ->pluck('id')
-            ->all();
-
-        $selectedUserIds = collect($validated['target_user_ids'] ?? [])
-            ->map(fn ($id) => (int) $id)
-            ->filter(fn ($id) => in_array($id, $allowedUserIds, true))
-            ->unique()
-            ->values()
-            ->all();
-
-        if (($validated['include_self'] ?? false) === true && $userId) {
-            $selectedUserIds[] = $userId;
-        }
-
-        $targetUserIds = collect($selectedUserIds)->unique()->values()->all();
-
-        if (empty($targetUserIds)) {
-            return redirect()->back()->withErrors([
-                'checkin' => 'Selecciona al menos un usuario para registrar entrada.',
-            ]);
-        }
-    } else {
-        $targetUserIds = [$userId];
-    }
-
-    $alreadyCheckedInIds = Checkin::query()
-        ->whereIn('user_id', $targetUserIds)
-        ->whereDate('check_in_time', today())
-        ->whereNull('check_out_time')
-        ->pluck('user_id')
-        ->all();
-
-    $creatableUserIds = collect($targetUserIds)
-        ->reject(fn ($id) => in_array($id, $alreadyCheckedInIds, true))
-        ->values()
-        ->all();
-
-    if (empty($creatableUserIds)) {
-        return redirect()->back()->withErrors([
-            'checkin' => 'Todos los usuarios seleccionados ya tienen entrada activa.',
-        ]);
-    }
-
-    foreach ($creatableUserIds as $targetUserId) {
-        $payload = [
-            'user_id' => $targetUserId,
-            'check_in_time' => now(),
-            'check_in_latitude' => $validated['latitude'] ?? null,
-            'check_in_longitude' => $validated['longitude'] ?? null,
-        ];
-
-        if ($this->hasCheckedByColumn()) {
-            $payload['checked_by_user_id'] = $userId;
-        }
-
-        Checkin::create($payload);
-    }
-
-    // 2. Disparar la notificación en tiempo real
-    $mensaje = $user?->role === 'Lider de Cuadrilla'
-        ? "{$user->name} registró check-in para ".count($creatableUserIds)." usuario(s)."
-        : "El usuario {$user->name} ha hecho check-in.";
-    broadcast(new notificationsTask($mensaje))->toOthers();
-
-    if ($user?->role === 'Lider de Cuadrilla') {
-        $this->notifyRoles(
-                'checkin_registered',
-            'Check-in de Lider de Cuadrilla',
-            $mensaje,
-            ['Admin', 'RH', 'Supervisor'],
-            [
-                'type' => 'checkin',
-                'user_id' => (string) $user->id,
-            ]
-        );
-    }
-
-    return redirect()->back();
-}
-
-    public function checkOut(Request $request)
     {
+        $settings = $this->getCheckinSettings();
+
         $validated = $request->validate([
             'latitude' => ['nullable', 'numeric'],
             'longitude' => ['nullable', 'numeric'],
@@ -192,7 +105,7 @@ class CheckinController extends Controller
 
         $targetUserIds = [];
 
-        if ($user?->role === 'Lider de Cuadrilla') {
+        if ($user?->role === 'Lider de Cuadrilla' && (bool) $settings['allow_leader_bulk_actions']) {
             $allowedUserIds = User::query()
                 ->whereIn('role', ['user', 'User', 'Empleado'])
                 ->where('status', 'Activo')
@@ -206,7 +119,119 @@ class CheckinController extends Controller
                 ->values()
                 ->all();
 
-            if (($validated['include_self'] ?? false) === true && $userId) {
+            if ((bool) $settings['allow_leader_include_self'] && ($validated['include_self'] ?? false) === true && $userId) {
+                $selectedUserIds[] = $userId;
+            }
+
+            $targetUserIds = collect($selectedUserIds)->unique()->values()->all();
+
+            if (empty($targetUserIds)) {
+                return redirect()->back()->withErrors([
+                    'checkin' => 'Selecciona al menos un usuario para registrar entrada.',
+                ]);
+            }
+        } else {
+            $targetUserIds = [$userId];
+        }
+
+        if (count($targetUserIds) > (int) $settings['max_targets_per_action']) {
+            return redirect()->back()->withErrors([
+                'checkin' => 'No se pueden registrar más de '.$settings['max_targets_per_action'].' usuarios por operación.',
+            ]);
+        }
+
+        if ((bool) $settings['require_location'] && (empty($validated['latitude']) || empty($validated['longitude']))) {
+            return redirect()->back()->withErrors([
+                'checkin' => 'La ubicación GPS es obligatoria para registrar entrada.',
+            ]);
+        }
+
+        $alreadyCheckedInIds = Checkin::query()
+            ->whereIn('user_id', $targetUserIds)
+            ->whereNull('check_out_time')
+            ->pluck('user_id')
+            ->all();
+
+        $creatableUserIds = collect($targetUserIds)
+            ->reject(fn ($id) => in_array($id, $alreadyCheckedInIds, true))
+            ->values()
+            ->all();
+
+        if (empty($creatableUserIds)) {
+            return redirect()->back()->withErrors([
+                'checkin' => 'Todos los usuarios seleccionados ya tienen entrada activa.',
+            ]);
+        }
+
+        foreach ($creatableUserIds as $targetUserId) {
+            $payload = [
+                'user_id' => $targetUserId,
+                'check_in_time' => now(),
+                'check_in_latitude' => $validated['latitude'] ?? null,
+                'check_in_longitude' => $validated['longitude'] ?? null,
+            ];
+
+            if ($this->hasCheckedByColumn()) {
+                $payload['checked_by_user_id'] = $userId;
+            }
+
+            Checkin::create($payload);
+        }
+
+        // 2. Disparar la notificación en tiempo real
+        $mensaje = $user?->role === 'Lider de Cuadrilla'
+            ? "{$user->name} registró check-in para ".count($creatableUserIds).' usuario(s).'
+            : "El usuario {$user->name} ha hecho check-in.";
+        broadcast(new notificationsTask($mensaje))->toOthers();
+
+        if ($user?->role === 'Lider de Cuadrilla') {
+            $this->notifyRoles(
+                'checkin_registered',
+                'Check-in de Lider de Cuadrilla',
+                $mensaje,
+                ['Admin', 'RH', 'Supervisor'],
+                [
+                    'type' => 'checkin',
+                    'user_id' => (string) $user->id,
+                ]
+            );
+        }
+
+        return redirect()->back();
+    }
+
+    public function checkOut(Request $request)
+    {
+        $settings = $this->getCheckinSettings();
+
+        $validated = $request->validate([
+            'latitude' => ['nullable', 'numeric'],
+            'longitude' => ['nullable', 'numeric'],
+            'target_user_ids' => ['nullable', 'array'],
+            'target_user_ids.*' => ['integer', 'exists:users,id'],
+            'include_self' => ['nullable', 'boolean'],
+        ]);
+
+        $user = $request->user();
+        $userId = $user?->id;
+
+        $targetUserIds = [];
+
+        if ($user?->role === 'Lider de Cuadrilla' && (bool) $settings['allow_leader_bulk_actions']) {
+            $allowedUserIds = User::query()
+                ->whereIn('role', ['user', 'User', 'Empleado'])
+                ->where('status', 'Activo')
+                ->pluck('id')
+                ->all();
+
+            $selectedUserIds = collect($validated['target_user_ids'] ?? [])
+                ->map(fn ($id) => (int) $id)
+                ->filter(fn ($id) => in_array($id, $allowedUserIds, true))
+                ->unique()
+                ->values()
+                ->all();
+
+            if ((bool) $settings['allow_leader_include_self'] && ($validated['include_self'] ?? false) === true && $userId) {
                 $selectedUserIds[] = $userId;
             }
 
@@ -221,10 +246,21 @@ class CheckinController extends Controller
             $targetUserIds = [$userId];
         }
 
-        // Buscar checkins activos de hoy para los usuarios seleccionados
+        if (count($targetUserIds) > (int) $settings['max_targets_per_action']) {
+            return redirect()->back()->withErrors([
+                'checkout' => 'No se pueden registrar más de '.$settings['max_targets_per_action'].' usuarios por operación.',
+            ]);
+        }
+
+        if ((bool) $settings['require_location'] && (empty($validated['latitude']) || empty($validated['longitude']))) {
+            return redirect()->back()->withErrors([
+                'checkout' => 'La ubicación GPS es obligatoria para registrar salida.',
+            ]);
+        }
+
+        // Buscar checkins activos para los usuarios seleccionados (sin limitar por fecha)
         $activeCheckins = Checkin::query()
             ->whereIn('user_id', $targetUserIds)
-            ->whereDate('check_in_time', today())
             ->whereNull('check_out_time')
             ->get();
 
@@ -234,14 +270,15 @@ class CheckinController extends Controller
             ]);
         }
 
-        $notReadyCheckins = $activeCheckins->filter(function (Checkin $checkin) {
-            $minimumCheckoutTime = $checkin->check_in_time->copy()->addHours(self::MAX_CHECKIN_HOURS);
+        $notReadyCheckins = $activeCheckins->filter(function (Checkin $checkin) use ($settings) {
+            $minimumCheckoutTime = $checkin->check_in_time->copy()->addHours((int) $settings['minimum_checkout_hours']);
+
             return now()->lt($minimumCheckoutTime);
         });
 
         if ($notReadyCheckins->isNotEmpty()) {
             return redirect()->back()->withErrors([
-                'checkout' => 'No se puede registrar salida antes de 4 horas desde la entrada.',
+                'checkout' => 'No se puede registrar salida antes de '.$settings['minimum_checkout_hours'].' hora(s) desde la entrada.',
             ]);
         }
 
@@ -259,24 +296,24 @@ class CheckinController extends Controller
             $checkin->update($payload);
         }
 
-            // Disparar la notificación en tiempo real
-            $mensaje = $user?->role === 'Lider de Cuadrilla'
-                ? "{$user->name} registró check-out para ".$activeCheckins->count()." usuario(s)."
-                : "El usuario {$user->name} ha hecho check-out.";
-            broadcast(new notificationsTask($mensaje))->toOthers();
+        // Disparar la notificación en tiempo real
+        $mensaje = $user?->role === 'Lider de Cuadrilla'
+            ? "{$user->name} registró check-out para ".$activeCheckins->count().' usuario(s).'
+            : "El usuario {$user->name} ha hecho check-out.";
+        broadcast(new notificationsTask($mensaje))->toOthers();
 
-            if ($user?->role === 'Lider de Cuadrilla') {
-                $this->notifyRoles(
-                    'checkout_registered',
-                    'Check-out de Lider de Cuadrilla',
-                    $mensaje,
-                    ['Admin', 'RH', 'Supervisor'],
-                    [
-                        'type' => 'checkout',
-                        'user_id' => (string) $user->id,
-                    ]
-                );
-            }
+        if ($user?->role === 'Lider de Cuadrilla') {
+            $this->notifyRoles(
+                'checkout_registered',
+                'Check-out de Lider de Cuadrilla',
+                $mensaje,
+                ['Admin', 'RH', 'Supervisor'],
+                [
+                    'type' => 'checkout',
+                    'user_id' => (string) $user->id,
+                ]
+            );
+        }
 
         return redirect()->back();
     }
@@ -390,7 +427,7 @@ class CheckinController extends Controller
         ]);
 
         $eventSettings = $settings->resolvedEventSettings();
-        if (!(bool) ($eventSettings[$eventKey] ?? true)) {
+        if (! (bool) ($eventSettings[$eventKey] ?? true)) {
             return;
         }
 
@@ -399,7 +436,7 @@ class CheckinController extends Controller
             ->values()
             ->all();
 
-        $targetRoles = !empty($configuredRoles)
+        $targetRoles = ! empty($configuredRoles)
             ? array_values(array_intersect($roles, $configuredRoles))
             : $roles;
 
@@ -422,6 +459,7 @@ class CheckinController extends Controller
                 'roles' => $targetRoles,
                 'title' => $title,
             ]);
+
             return;
         }
 
@@ -429,6 +467,7 @@ class CheckinController extends Controller
         foreach ($data as $key => $value) {
             if (is_scalar($value) || $value === null) {
                 $normalizedData[$key] = (string) $value;
+
                 continue;
             }
 
@@ -442,12 +481,19 @@ class CheckinController extends Controller
             $normalizedData
         );
 
-        if (!($result['success'] ?? false)) {
+        if (! ($result['success'] ?? false)) {
             \Log::error('FCM roles notification failed.', [
                 'roles' => $targetRoles,
                 'title' => $title,
                 'message' => $result['message'] ?? null,
             ]);
         }
+    }
+
+    private function getCheckinSettings(): array
+    {
+        $settings = CheckinSetting::query()->firstOrCreate([], CheckinSetting::defaults());
+
+        return $settings->resolved();
     }
 }

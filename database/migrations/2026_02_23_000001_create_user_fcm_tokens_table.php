@@ -49,7 +49,7 @@ return new class extends Migration
                         ];
                     }
 
-                    if (!empty($rows)) {
+                    if (! empty($rows)) {
                         DB::table('user_fcm_tokens')->upsert(
                             $rows,
                             ['token'],
@@ -69,7 +69,7 @@ return new class extends Migration
      */
     public function down(): void
     {
-        if (!Schema::hasColumn('users', 'fcm_token')) {
+        if (! Schema::hasColumn('users', 'fcm_token')) {
             Schema::table('users', function (Blueprint $table) {
                 $table->string('fcm_token', 512)->nullable()->after('remember_token');
             });

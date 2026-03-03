@@ -10,8 +10,15 @@ use Inertia\Inertia;
 
 class UsuariosController extends Controller
 {
+    private function ensureAdmin(Request $request): void
+    {
+        abort_unless($request->user()?->role === 'Admin', 403);
+    }
+
     public function index()
     {
+        $this->ensureAdmin(request());
+
         $usuarios = User::query()
             ->select(['id', 'name', 'email', 'role', 'status'])
             ->orderBy('name')
@@ -34,6 +41,8 @@ class UsuariosController extends Controller
 
     public function store(Request $request)
     {
+        $this->ensureAdmin($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => ['required', 'string', 'email', 'max:255', 'unique:users,email'],
@@ -51,6 +60,8 @@ class UsuariosController extends Controller
 
     public function update(Request $request, User $user)
     {
+        $this->ensureAdmin($request);
+
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'email' => [
@@ -71,6 +82,8 @@ class UsuariosController extends Controller
 
     public function destroy(User $user)
     {
+        $this->ensureAdmin(request());
+
         $user->delete();
 
         return redirect()->back();

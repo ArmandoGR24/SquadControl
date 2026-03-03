@@ -1,7 +1,8 @@
 <?php
 
-use App\Http\Controllers\Settings\PasswordController;
+use App\Http\Controllers\Settings\CheckinSettingsController;
 use App\Http\Controllers\Settings\NotificationSettingsController;
+use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
 use App\Http\Controllers\Settings\TwoFactorAuthenticationController;
 use Illuminate\Support\Facades\Route;
@@ -37,4 +38,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::put('settings/notifications', [NotificationSettingsController::class, 'update'])
         ->middleware('role:Admin')
         ->name('settings.notifications.update');
+
+    Route::get('settings/checkins', [CheckinSettingsController::class, 'edit'])
+        ->middleware('role:Admin')
+        ->name('settings.checkins.edit');
+
+    Route::put('settings/checkins', [CheckinSettingsController::class, 'update'])
+        ->middleware('role:Admin')
+        ->name('settings.checkins.update');
 });

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, onBeforeUnmount, ref, watch } from 'vue';
 import LeaderLayout from '@/layouts/LeaderLayout.vue';
 import { optimizeEvidenceFile, validateEvidenceFile } from '@/lib/evidenceUpload';
@@ -258,7 +258,15 @@ watch(
 
 <template>
   <LeaderLayout :title="tarea.nombre">
-    <div class="flex h-full flex-1 flex-col gap-4">
+    <Head title="Detalle de tarea">
+      <meta
+        head-key="viewport"
+        name="viewport"
+        content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+      >
+    </Head>
+
+    <div class="mx-auto flex h-full w-full max-w-5xl flex-1 flex-col gap-4 pb-[calc(env(safe-area-inset-bottom)+0.75rem)]">
       <div class="flex items-center gap-3">
         <Link
           href="/mis-tareas"
@@ -309,7 +317,7 @@ watch(
               <select
                 id="status-select"
                 v-model="statusForm.status"
-                class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+                class="h-10 rounded-md border border-input bg-background px-3 text-base text-foreground shadow-sm outline-none transition focus:border-primary sm:h-9 sm:text-sm"
               >
                 <option value="Pendiente">Pendiente</option>
                 <option value="En progreso">En progreso</option>
@@ -328,7 +336,7 @@ watch(
                 id="status-comment"
                 v-model="statusForm.status_comment"
                 rows="3"
-                class="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+                class="rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-sm outline-none transition focus:border-primary sm:text-sm"
               ></textarea>
               <p v-if="statusForm.errors.status_comment" class="text-xs text-destructive">
                 {{ statusForm.errors.status_comment }}
@@ -419,7 +427,7 @@ watch(
               v-model="evidenceForm.comment"
               rows="3"
               placeholder="Comentario de evidencia (opcional)"
-              class="rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+              class="rounded-md border border-input bg-background px-3 py-2 text-base text-foreground shadow-sm outline-none transition focus:border-primary sm:text-sm"
             ></textarea>
             <p v-if="evidenceForm.errors.evidences || evidenceForm.errors.evidence" class="text-xs text-destructive">
               {{ evidenceForm.errors.evidences || evidenceForm.errors.evidence }}

@@ -15,8 +15,7 @@ class EvidenceAdded extends Notification
         private readonly Task $task,
         private readonly ?string $comment,
         private readonly ?User $uploadedBy,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

@@ -32,7 +32,7 @@ class FcmRoleCounts extends Command
         $query = UserFcmToken::query()
             ->join('users', 'users.id', '=', 'user_fcm_tokens.user_id');
 
-        if (!empty($roles)) {
+        if (! empty($roles)) {
             $query->whereIn('users.role', $roles);
         }
 
@@ -48,6 +48,7 @@ class FcmRoleCounts extends Command
 
         if ($rows->isEmpty()) {
             $this->warn('No hay tokens FCM registrados para los roles indicados.');
+
             return 0;
         }
 

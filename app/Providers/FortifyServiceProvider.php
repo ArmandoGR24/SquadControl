@@ -13,11 +13,11 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
-use Laravel\Fortify\Features;
-use Laravel\Fortify\Fortify;
 use Laravel\Fortify\Contracts\LoginResponse as LoginResponseContract;
 use Laravel\Fortify\Contracts\LogoutResponse as LogoutResponseContract;
 use Laravel\Fortify\Contracts\PasswordResetResponse as PasswordResetResponseContract;
+use Laravel\Fortify\Features;
+use Laravel\Fortify\Fortify;
 
 class FortifyServiceProvider extends ServiceProvider
 {
@@ -85,7 +85,7 @@ class FortifyServiceProvider extends ServiceProvider
     {
         $status = $request->session()->get('status');
 
-        if (!is_string($status) || $status === '') {
+        if (! is_string($status) || $status === '') {
             return null;
         }
 

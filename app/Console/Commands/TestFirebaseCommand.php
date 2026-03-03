@@ -43,13 +43,14 @@ class TestFirebaseCommand extends Command
 
         // Verificar archivo de credenciales
         $serviceAccountPath = storage_path('app/firebase-service-account.json');
-        
-        if (!file_exists($serviceAccountPath)) {
+
+        if (! file_exists($serviceAccountPath)) {
             $this->error('❌ Error: No se encontró el archivo de Service Account.');
             $this->warn('📥 Descárgalo desde Firebase Console y colócalo en:');
             $this->line("   {$serviceAccountPath}");
             $this->newLine();
             $this->info('📚 Ver guía completa: TESTING_GUIDE.md');
+
             return 1;
         }
 
@@ -57,10 +58,11 @@ class TestFirebaseCommand extends Command
 
         // Verificar usuarios con token
         $usersWithToken = User::whereHas('fcmTokens')->count();
-        
+
         if ($usersWithToken === 0) {
             $this->warn('⚠️  No hay usuarios con token FCM registrado.');
             $this->info('💡 Inicia sesión en la app web y acepta los permisos de notificación.');
+
             return 1;
         }
 
@@ -84,7 +86,7 @@ class TestFirebaseCommand extends Command
     protected function showMenu()
     {
         $this->info('📋 Usuarios con tokens FCM:');
-        
+
         $users = User::whereHas('fcmTokens')
             ->get(['id', 'name', 'email', 'role'])
             ->map(function ($user) {
@@ -115,8 +117,9 @@ class TestFirebaseCommand extends Command
     {
         $user = User::find($userId);
 
-        if (!$user) {
+        if (! $user) {
             $this->error("❌ Usuario con ID {$userId} no encontrado.");
+
             return 1;
         }
 
@@ -130,6 +133,7 @@ class TestFirebaseCommand extends Command
         if (empty($tokens)) {
             $this->error("❌ El usuario {$user->name} no tiene token FCM.");
             $this->warn('💡 Debe iniciar sesión en la app y aceptar permisos de notificación.');
+
             return 1;
         }
 
@@ -152,6 +156,7 @@ class TestFirebaseCommand extends Command
         } else {
             $this->error('❌ Error al enviar notificación:');
             $this->warn("   {$result['message']}");
+
             return 1;
         }
 
@@ -170,13 +175,15 @@ class TestFirebaseCommand extends Command
 
         if (empty($tokens)) {
             $this->error('❌ No hay usuarios con tokens FCM para enviar broadcast.');
+
             return 1;
         }
 
         $this->warn("📢 ¿Enviar notificación a {$users->count()} usuario(s)?");
-        
-        if (!$this->confirm('¿Continuar?', true)) {
+
+        if (! $this->confirm('¿Continuar?', true)) {
             $this->info('❌ Operación cancelada.');
+
             return 0;
         }
 
@@ -196,13 +203,14 @@ class TestFirebaseCommand extends Command
         if ($result['success']) {
             $this->info('✅ ¡Broadcast enviado exitosamente!');
             $this->line("   Enviadas correctamente: {$result['successful']}");
-            
+
             if ($result['failed'] > 0) {
                 $this->warn("   Fallidas: {$result['failed']}");
             }
         } else {
             $this->error('❌ Error al enviar broadcast:');
             $this->warn("   {$result['message']}");
+
             return 1;
         }
 

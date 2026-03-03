@@ -46,7 +46,7 @@ class NotificationSettingsController extends Controller
         $recipientRules = collect(NotificationSetting::EVENT_KEYS)
             ->mapWithKeys(fn (string $eventKey) => [
                 "recipients.$eventKey" => ['required', 'array'],
-                "recipients.$eventKey.*" => ['string', 'in:' . implode(',', NotificationSetting::ROLE_OPTIONS)],
+                "recipients.$eventKey.*" => ['string', 'in:'.implode(',', NotificationSetting::ROLE_OPTIONS)],
             ])
             ->all();
 

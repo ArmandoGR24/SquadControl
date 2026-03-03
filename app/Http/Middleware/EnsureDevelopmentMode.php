@@ -15,7 +15,7 @@ class EnsureDevelopmentMode
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (!app()->environment(['local', 'development'])) {
+        if (! app()->environment(['local', 'development'])) {
             abort(404);
         }
 

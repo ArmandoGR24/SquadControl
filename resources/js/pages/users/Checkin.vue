@@ -20,6 +20,10 @@ const props = defineProps<{
   lastCheckin: LastCheckin;
   isLeaderMode: boolean;
   targetUsers: TargetUser[];
+  minimumCheckoutHours: number;
+  requireLocation: boolean;
+  allowLeaderIncludeSelf: boolean;
+  maxTargetsPerAction: number;
 }>();
 
 const currentTime = ref(new Date());
@@ -29,8 +33,8 @@ const showCheckInSelector = ref(false);
 const showCheckOutSelector = ref(false);
 const selectedUserIdsCheckIn = ref<number[]>([]);
 const selectedUserIdsCheckOut = ref<number[]>([]);
-const includeSelfCheckIn = ref(true);
-const includeSelfCheckOut = ref(true);
+const includeSelfCheckIn = ref(props.allowLeaderIncludeSelf);
+const includeSelfCheckOut = ref(props.allowLeaderIncludeSelf);
 
 const checkInForm = useForm({
   latitude: null as number | null,
@@ -49,8 +53,8 @@ const checkOutForm = useForm({
 const page = usePage();
 const pageErrors = computed(() => page.props.errors as Record<string, string>);
 
-const selectedUsersCountCheckIn = computed(() => selectedUserIdsCheckIn.value.length + (includeSelfCheckIn.value && props.isLeaderMode ? 1 : 0));
-const selectedUsersCountCheckOut = computed(() => selectedUserIdsCheckOut.value.length + (includeSelfCheckOut.value && props.isLeaderMode ? 1 : 0));
+const selectedUsersCountCheckIn = computed(() => selectedUserIdsCheckIn.value.length + (includeSelfCheckIn.value && props.isLeaderMode && props.allowLeaderIncludeSelf ? 1 : 0));
+const selectedUsersCountCheckOut = computed(() => selectedUserIdsCheckOut.value.length + (includeSelfCheckOut.value && props.isLeaderMode && props.allowLeaderIncludeSelf ? 1 : 0));
 const activeTargetUsers = computed(() => props.targetUsers.filter((user) => user.has_active_checkin));
 
 const selectedUsersActiveCount = computed(() => {
@@ -165,7 +169,7 @@ const openCheckOutSelector = () => {
 
 const submitCheckIn = async () => {
   if (props.isLeaderMode) {
-    prepareLeaderPayload(checkInForm, selectedUserIdsCheckIn.value, includeSelfCheckIn.value);
+    prepareLeaderPayload(checkInForm, selectedUserIdsCheckIn.value, includeSelfCheckIn.value && props.allowLeaderIncludeSelf);
   }
 
   try {
@@ -191,7 +195,7 @@ const submitCheckIn = async () => {
 
 const submitCheckOut = async () => {
   if (props.isLeaderMode) {
-    prepareLeaderPayload(checkOutForm, selectedUserIdsCheckOut.value, includeSelfCheckOut.value);
+    prepareLeaderPayload(checkOutForm, selectedUserIdsCheckOut.value, includeSelfCheckOut.value && props.allowLeaderIncludeSelf);
   }
 
   try {
@@ -294,7 +298,7 @@ const formatDateTime = (isoString: string) => {
             >
               <div class="flex items-center gap-2">
                 <div class="h-3 w-3 rounded-full bg-muted-foreground"></div>
-                <span class="font-semibold text-foreground">Sin entrada registrada hoy</span>
+                <span class="font-semibold text-foreground">Sin entrada activa</span>
               </div>
               <p class="mt-2 text-sm text-muted-foreground">
                 Última salida: {{ formatDateTime(lastCheckin.check_out_time) }}
@@ -307,7 +311,7 @@ const formatDateTime = (isoString: string) => {
               <div class="flex items-center gap-2">
                 <div class="h-3 w-3 rounded-full bg-muted-foreground"></div>
                 <span class="font-semibold text-foreground">
-                  {{ props.isLeaderMode ? `Usuarios con entrada activa: ${selectedUsersActiveCount}` : 'Sin entrada registrada hoy' }}
+                  {{ props.isLeaderMode ? `Usuarios con entrada activa: ${selectedUsersActiveCount}` : 'Sin entrada activa' }}
                 </span>
               </div>
             </div>
@@ -365,7 +369,15 @@ const formatDateTime = (isoString: string) => {
         <div class="rounded-2xl border border-sidebar-border/70 bg-background p-5 shadow-sm">
           <h2 class="text-sm font-semibold text-foreground">Información GPS</h2>
           <p class="mt-2 text-sm text-muted-foreground">
-            Al registrar entrada o salida se guarda la ubicación GPS para control operativo.
+            {{ props.requireLocation
+              ? 'La ubicación GPS es obligatoria para registrar entrada y salida.'
+              : 'Al registrar entrada o salida se guarda la ubicación GPS para control operativo.' }}
+          </p>
+          <p class="mt-2 text-xs text-muted-foreground">
+            Salida permitida después de {{ props.minimumCheckoutHours }} hora(s) desde la entrada.
+          </p>
+          <p v-if="props.isLeaderMode" class="mt-1 text-xs text-muted-foreground">
+            Máximo {{ props.maxTargetsPerAction }} usuario(s) por operación.
           </p>
         </div>
       </div>
@@ -400,10 +412,13 @@ const formatDateTime = (isoString: string) => {
             </button>
           </div>
 
-          <label class="mt-3 flex items-center gap-2 text-sm text-foreground">
-            <input v-model="includeSelfCheckIn" type="checkbox" class="h-4 w-4 rounded border-input" />
+          <label class="mt-3 flex items-center gap-2 text-sm text-foreground" :class="{ 'opacity-60': !props.allowLeaderIncludeSelf }">
+            <input v-model="includeSelfCheckIn" :disabled="!props.allowLeaderIncludeSelf" type="checkbox" class="h-4 w-4 rounded border-input" />
             Incluir mi entrada (líder)
           </label>
+          <p v-if="!props.allowLeaderIncludeSelf" class="mt-1 text-xs text-muted-foreground">
+            Esta opción está deshabilitada por configuración.
+          </p>
 
           <div class="mt-3 max-h-72 overflow-y-auto rounded-lg border border-sidebar-border/70 p-3">
             <div class="grid gap-2 md:grid-cols-2">
@@ -478,10 +493,13 @@ const formatDateTime = (isoString: string) => {
             </button>
           </div>
 
-          <label class="mt-3 flex items-center gap-2 text-sm text-foreground">
-            <input v-model="includeSelfCheckOut" type="checkbox" class="h-4 w-4 rounded border-input" />
+          <label class="mt-3 flex items-center gap-2 text-sm text-foreground" :class="{ 'opacity-60': !props.allowLeaderIncludeSelf }">
+            <input v-model="includeSelfCheckOut" :disabled="!props.allowLeaderIncludeSelf" type="checkbox" class="h-4 w-4 rounded border-input" />
             Incluir mi salida (líder)
           </label>
+          <p v-if="!props.allowLeaderIncludeSelf" class="mt-1 text-xs text-muted-foreground">
+            Esta opción está deshabilitada por configuración.
+          </p>
 
           <div class="mt-3 max-h-72 overflow-y-auto rounded-lg border border-sidebar-border/70 p-3">
             <div v-if="activeTargetUsers.length > 0" class="grid gap-2 md:grid-cols-2">

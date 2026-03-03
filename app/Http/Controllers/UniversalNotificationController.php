@@ -8,9 +8,7 @@ use Illuminate\Http\Request;
 
 class UniversalNotificationController extends Controller
 {
-    public function __construct(protected FirebaseService $firebaseService)
-    {
-    }
+    public function __construct(protected FirebaseService $firebaseService) {}
 
     /**
      * Envío universal de notificaciones.
@@ -34,7 +32,7 @@ class UniversalNotificationController extends Controller
 
         $query = UserFcmToken::query();
 
-        if (!empty($payload['user_id'])) {
+        if (! empty($payload['user_id'])) {
             $query->where('user_id', $payload['user_id']);
         }
 
@@ -62,7 +60,7 @@ class UniversalNotificationController extends Controller
         return response()->json([
             ...$result,
             'target_tokens' => count($tokens),
-            'scope' => !empty($payload['user_id']) ? 'user' : 'all',
+            'scope' => ! empty($payload['user_id']) ? 'user' : 'all',
             'user_id' => $payload['user_id'] ?? null,
         ]);
     }

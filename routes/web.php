@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\PublicStorageController;
 use App\Http\Controllers\TareasController;
 use App\Http\Controllers\UsuariosController;
 use App\Models\Checkin;
@@ -16,6 +17,10 @@ Route::get('/', function () {
         'canResetPassword' => Features::enabled(Features::resetPasswords()),
     ]);
 })->name('home');
+
+Route::get('media/{path}', PublicStorageController::class)
+    ->where('path', '.*')
+    ->name('public.media.fallback');
 
 Route::get('dashboard', function (Request $request) {
     $user = $request->user();
@@ -71,7 +76,7 @@ Route::delete('notifications', function (Request $request) {
     $user = $request->user();
     $type = $request->input('type');
 
-    if (!$user) {
+    if (! $user) {
         return back();
     }
 
@@ -87,19 +92,19 @@ Route::delete('notifications', function (Request $request) {
 })->middleware(['auth'])->name('notifications.destroy-all');
 
 Route::get('usuarios', [UsuariosController::class, 'index'])
-    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->middleware(['auth', 'role:Admin'])
     ->name('usuarios');
 
 Route::post('usuarios', [UsuariosController::class, 'store'])
-    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->middleware(['auth', 'role:Admin'])
     ->name('usuarios.store');
 
 Route::put('usuarios/{user}', [UsuariosController::class, 'update'])
-    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->middleware(['auth', 'role:Admin'])
     ->name('usuarios.update');
 
 Route::delete('usuarios/{user}', [UsuariosController::class, 'destroy'])
-    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->middleware(['auth', 'role:Admin'])
     ->name('usuarios.destroy');
 
 Route::get('tareas', [TareasController::class, 'index'])

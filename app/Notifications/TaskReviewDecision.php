@@ -16,8 +16,7 @@ class TaskReviewDecision extends Notification
         private readonly string $decision,
         private readonly ?string $comment,
         private readonly ?User $actor,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

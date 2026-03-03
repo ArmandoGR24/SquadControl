@@ -1,7 +1,7 @@
 <?php
 
-use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\EnsureDevelopmentMode;
+use App\Http\Middleware\EnsureUserRole;
 use App\Http\Middleware\HandleAppearance;
 use App\Http\Middleware\HandleInertiaRequests;
 use Illuminate\Foundation\Application;

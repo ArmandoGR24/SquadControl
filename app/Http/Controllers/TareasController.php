@@ -14,9 +14,8 @@ use Inertia\Inertia;
 
 class TareasController extends Controller
 {
-    public function __construct(private TaskNotificationService $notificationService)
-    {
-    }
+    public function __construct(private TaskNotificationService $notificationService) {}
+
     public function mine(Request $request)
     {
         $user = $request->user();
@@ -25,7 +24,7 @@ class TareasController extends Controller
 
         $query = Task::query();
 
-        if (!$isLeader) {
+        if (! $isLeader) {
             $query->whereHas('leaders', fn ($leadersQuery) => $leadersQuery->where('users.id', $userId));
         }
 
@@ -57,7 +56,7 @@ class TareasController extends Controller
                         ->map(function (TaskEvidence $evidence) {
                             return [
                                 'id' => $evidence->id,
-                                'url' => Storage::url($evidence->path),
+                                'url' => route('public.media.fallback', ['path' => $evidence->path]),
                                 'comentario' => $evidence->comment,
                                 'fecha' => optional($evidence->created_at)->toDateTimeString(),
                                 'subido_por' => $evidence->uploader?->name,
@@ -94,12 +93,12 @@ class TareasController extends Controller
         $isLeader = $user?->role === 'Lider de Cuadrilla';
         $isAssigned = $task->leaders()->where('users.id', $userId)->exists();
 
-        if (!$isLeader && !$isAssigned) {
+        if (! $isLeader && ! $isAssigned) {
             abort(403);
         }
 
         // Si es líder y aún no está asignado, toma la tarea automáticamente.
-        if ($isLeader && !$isAssigned && $userId) {
+        if ($isLeader && ! $isAssigned && $userId) {
             $task->leaders()->syncWithoutDetaching([$userId]);
         }
 
@@ -120,7 +119,7 @@ class TareasController extends Controller
                 ->map(function (TaskEvidence $evidence) {
                     return [
                         'id' => $evidence->id,
-                        'url' => Storage::url($evidence->path),
+                        'url' => route('public.media.fallback', ['path' => $evidence->path]),
                         'comentario' => $evidence->comment,
                         'fecha' => optional($evidence->created_at)->toDateTimeString(),
                         'subido_por' => $evidence->uploader?->name,
@@ -177,7 +176,7 @@ class TareasController extends Controller
                         ->map(function (TaskEvidence $evidence) {
                             return [
                                 'id' => $evidence->id,
-                                'url' => Storage::url($evidence->path),
+                                'url' => route('public.media.fallback', ['path' => $evidence->path]),
                                 'comentario' => $evidence->comment,
                                 'fecha' => optional($evidence->created_at)->toDateTimeString(),
                                 'subido_por' => $evidence->uploader?->name,
@@ -248,7 +247,7 @@ class TareasController extends Controller
         // Notificar a los líderes cuando se les asigna una tarea
         $leaderIds = $validated['leader_ids'] ?? [];
 
-        if (!empty($leaderIds)) {
+        if (! empty($leaderIds)) {
             $this->notificationService->notifyTaskAssigned(
                 $task,
                 $request->user(),
@@ -292,7 +291,7 @@ class TareasController extends Controller
 
         $task->leaders()->sync($validated['leader_ids'] ?? []);
 
-        if ($previousStatus !== $validated['status'] || !empty($validated['status_comment'])) {
+        if ($previousStatus !== $validated['status'] || ! empty($validated['status_comment'])) {
             TaskStatusHistory::create([
                 'task_id' => $task->id,
                 'user_id' => $request->user()?->id,
@@ -350,11 +349,11 @@ class TareasController extends Controller
         $isLeader = $user?->role === 'Lider de Cuadrilla';
         $isAssigned = $task->leaders()->where('users.id', $userId)->exists();
 
-        if (!$isAssigned && !$isLeader) {
+        if (! $isAssigned && ! $isLeader) {
             abort(403);
         }
 
-        if ($isLeader && !$isAssigned && $userId) {
+        if ($isLeader && ! $isAssigned && $userId) {
             $task->leaders()->syncWithoutDetaching([$userId]);
         }
 
@@ -413,12 +412,12 @@ class TareasController extends Controller
         $isLeader = $user?->role === 'Lider de Cuadrilla';
         $isAssigned = $task->leaders()->where('users.id', $userId)->exists();
 
-        if (!$isAssigned && !$isLeader) {
+        if (! $isAssigned && ! $isLeader) {
             abort(403);
         }
 
         // Si un líder no estaba asignado y actualiza estado, se asigna automáticamente.
-        if ($isLeader && !$isAssigned && $userId) {
+        if ($isLeader && ! $isAssigned && $userId) {
             $task->leaders()->syncWithoutDetaching([$userId]);
         }
 
@@ -462,7 +461,7 @@ class TareasController extends Controller
     {
         $role = $request->user()?->role;
 
-        if (!in_array($role, ['Supervisor', 'Admin'], true)) {
+        if (! in_array($role, ['Supervisor', 'Admin'], true)) {
             abort(403);
         }
 

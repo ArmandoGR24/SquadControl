@@ -28,8 +28,8 @@ class FirebaseController extends Controller
         ]);
 
         $user = Auth::user();
-        
-        if (!$user) {
+
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Usuario no autenticado',
@@ -90,7 +90,7 @@ class FirebaseController extends Controller
     {
         $user = $request->user();
 
-        if (!$user) {
+        if (! $user) {
             return response()->json([
                 'success' => false,
                 'message' => 'Usuario no autenticado',
@@ -126,7 +126,7 @@ class FirebaseController extends Controller
             ->values()
             ->toArray() ?? [];
 
-        if (!$user || empty($tokens)) {
+        if (! $user || empty($tokens)) {
             return response()->json([
                 'success' => false,
                 'message' => 'Usuario no tiene token FCM registrado',

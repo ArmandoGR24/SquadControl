@@ -14,8 +14,7 @@ class TaskAssigned extends Notification
     public function __construct(
         private readonly Task $task,
         private readonly ?User $assignedBy,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

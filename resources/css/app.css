@@ -172,7 +172,66 @@
     * {
         @apply border-border outline-ring/50;
     }
+    html,
+    body {
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+        overscroll-behavior-x: none;
+        -webkit-text-size-adjust: 100%;
+        text-size-adjust: 100%;
+    }
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+@media (max-width: 1024px) {
+    input,
+    select,
+    textarea {
+        font-size: 16px;
+    }
+
+    a,
+    button,
+    input,
+    label,
+    select,
+    textarea {
+        touch-action: manipulation;
+    }
+}
+
+.pull-refresh-indicator {
+    position: fixed;
+    top: max(8px, env(safe-area-inset-top));
+    left: 50%;
+    width: 38px;
+    height: 5px;
+    border-radius: 999px;
+    background: var(--color-primary);
+    transform: translateX(-50%) translateY(calc(-24px + var(--pull-distance, 0px)));
+    opacity: var(--pull-opacity, 0);
+    z-index: 100;
+    pointer-events: none;
+    transition: transform 140ms ease, opacity 140ms ease, background-color 140ms ease;
+}
+
+.pull-refresh-indicator.is-armed {
+    background: var(--color-ring);
+}
+
+.pull-refresh-indicator.is-refreshing {
+    animation: pull-refresh-pulse 700ms ease-in-out infinite;
+}
+
+@keyframes pull-refresh-pulse {
+    0%,
+    100% {
+        opacity: 0.45;
+    }
+    50% {
+        opacity: 1;
     }
 }

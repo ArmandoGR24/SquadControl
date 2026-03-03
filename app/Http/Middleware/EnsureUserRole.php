@@ -15,7 +15,7 @@ class EnsureUserRole
     {
         $userRole = $request->user()?->role;
 
-        if (!$userRole || !in_array($userRole, $roles, true)) {
+        if (! $userRole || ! in_array($userRole, $roles, true)) {
             if ($request->expectsJson()) {
                 abort(403);
             }

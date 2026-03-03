@@ -29,11 +29,6 @@ const items: NavItem[] = [
         icon: LayoutGrid,
     },
     {
-        title: 'Usuarios',
-        href: '/usuarios',
-        icon: User,
-    },
-    {
         title: 'Tareas',
         href: '/tareas',
         icon: BookOpen,
@@ -44,6 +39,14 @@ const items: NavItem[] = [
         icon: Clock,
     }
 ];
+
+if (isAdmin.value) {
+    items.splice(1, 0, {
+        title: 'Usuarios',
+        href: '/usuarios',
+        icon: User,
+    });
+}
 
 if (isDevMode.value && isAdmin.value) {
     items.push({

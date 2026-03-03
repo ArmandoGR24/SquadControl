@@ -14,8 +14,7 @@ class TaskPublished extends Notification
     public function __construct(
         private readonly Task $task,
         private readonly ?User $publishedBy,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

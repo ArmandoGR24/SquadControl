@@ -15,8 +15,7 @@ class TaskCompleted extends Notification
         private readonly Task $task,
         private readonly ?string $comment,
         private readonly ?User $completedBy,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

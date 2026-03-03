@@ -14,8 +14,7 @@ class TaskSentForReview extends Notification
     public function __construct(
         private readonly Task $task,
         private readonly ?User $actor,
-    ) {
-    }
+    ) {}
 
     public function via(object $notifiable): array
     {

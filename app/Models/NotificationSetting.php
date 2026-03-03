@@ -46,7 +46,7 @@ class NotificationSetting extends Model
             'task_assigned' => true,
             'task_status_changed' => true,
             'task_review_requested' => true,
-            'task_review_decision' => true,
+            'task_review_decision' => false,
             'task_feedback' => true,
             'evidence_added' => true,
             'task_completed' => true,
@@ -92,7 +92,7 @@ class NotificationSetting extends Model
             ->mapWithKeys(function (array $roles, string $eventKey) use ($current) {
                 $configured = $current[$eventKey] ?? $roles;
 
-                if (!is_array($configured)) {
+                if (! is_array($configured)) {
                     return [$eventKey => $roles];
                 }
 

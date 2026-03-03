@@ -14,11 +14,14 @@ use App\Notifications\TaskPublished;
 use App\Notifications\TaskReviewDecision;
 use App\Notifications\TaskSentForReview;
 use App\Notifications\TaskStatusChanged;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Throwable;
 
 class TaskNotificationService
 {
+    private const DEDUP_TTL_SECONDS = 45;
+
     private ?NotificationSetting $notificationSetting = null;
 
     /**
@@ -26,7 +29,7 @@ class TaskNotificationService
      */
     public function notifyTaskPublished(Task $task, ?User $publishedBy = null): void
     {
-        if (!$this->isEventEnabled('task_published')) {
+        if (! $this->isEventEnabled('task_published')) {
             return;
         }
 
@@ -35,12 +38,25 @@ class TaskNotificationService
             ->whereIn('role', $this->allowedRolesForEvent('task_published'))
             ->get(['id']);
 
+        $recipientIds = $this->filterRecipientsForDispatch(
+            $leaders->pluck('id')->all(),
+            'task_published',
+            $task,
+            ['published_by_id' => $publishedBy?->id]
+        );
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $leaders = User::query()->whereIn('id', $recipientIds)->get(['id']);
+
         $leaders->each(function (User $leader) use ($task, $publishedBy) {
             $leader->notify(new TaskPublished($task, $publishedBy));
         });
 
         $this->sendPushToUsers(
-            $leaders->pluck('id')->all(),
+            $recipientIds,
             'Nueva tarea publicada',
             "Hay una nueva tarea disponible: {$task->name}",
             [
@@ -127,11 +143,22 @@ class TaskNotificationService
      */
     public function notifyTaskAssigned(Task $task, ?User $assignedBy = null, array $leaderIds = []): void
     {
-        if (!$this->isEventEnabled('task_assigned')) {
+        if (! $this->isEventEnabled('task_assigned')) {
             return;
         }
 
         $recipientIds = $this->filterUserIdsByEventRoles($leaderIds, 'task_assigned');
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $recipientIds = $this->filterRecipientsForDispatch(
+            $recipientIds,
+            'task_assigned',
+            $task,
+            ['assigned_by_id' => $assignedBy?->id]
+        );
 
         if (empty($recipientIds)) {
             return;
@@ -167,7 +194,7 @@ class TaskNotificationService
         ?User $actor = null,
         array $recipientIds = []
     ): void {
-        if (!$this->isEventEnabled('task_status_changed')) {
+        if (! $this->isEventEnabled('task_status_changed')) {
             return;
         }
 
@@ -180,6 +207,22 @@ class TaskNotificationService
             $recipientIds,
             'task_status_changed',
             $actor?->id
+        );
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $recipientIds = $this->filterRecipientsForDispatch(
+            $recipientIds,
+            'task_status_changed',
+            $task,
+            [
+                'previous_status' => $previousStatus,
+                'new_status' => $newStatus,
+                'comment' => $comment,
+                'actor_id' => $actor?->id,
+            ]
         );
 
         if (empty($recipientIds)) {
@@ -218,7 +261,7 @@ class TaskNotificationService
      */
     public function notifyTaskSentForReview(Task $task, ?User $sentBy = null): void
     {
-        if (!$this->isEventEnabled('task_review_requested')) {
+        if (! $this->isEventEnabled('task_review_requested')) {
             return;
         }
 
@@ -227,6 +270,17 @@ class TaskNotificationService
         $allowedRecipientIds = $this->filterUserIdsByEventRoles(
             $recipients->pluck('id')->all(),
             'task_review_requested'
+        );
+
+        if (empty($allowedRecipientIds)) {
+            return;
+        }
+
+        $allowedRecipientIds = $this->filterRecipientsForDispatch(
+            $allowedRecipientIds,
+            'task_review_requested',
+            $task,
+            ['actor_id' => $sentBy?->id]
         );
 
         if (empty($allowedRecipientIds)) {
@@ -259,13 +313,28 @@ class TaskNotificationService
         ?string $comment = null,
         ?User $reviewer = null
     ): void {
-        if (!$this->isEventEnabled('task_review_decision')) {
+        if (! $this->isEventEnabled('task_review_decision')) {
             return;
         }
 
         $recipientIds = $this->filterUserIdsByEventRoles(
             $task->leaders->pluck('id')->all(),
             'task_review_decision'
+        );
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $recipientIds = $this->filterRecipientsForDispatch(
+            $recipientIds,
+            'task_review_decision',
+            $task,
+            [
+                'decision' => $decision,
+                'comment' => $comment,
+                'actor_id' => $reviewer?->id,
+            ]
         );
 
         if (empty($recipientIds)) {
@@ -305,13 +374,28 @@ class TaskNotificationService
         ?string $comment = null,
         ?User $feedbackFrom = null
     ): void {
-        if (!$this->isEventEnabled('task_feedback')) {
+        if (! $this->isEventEnabled('task_feedback')) {
             return;
         }
 
         $recipientIds = $this->filterUserIdsByEventRoles(
             $task->leaders->pluck('id')->all(),
             'task_feedback'
+        );
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $recipientIds = $this->filterRecipientsForDispatch(
+            $recipientIds,
+            'task_feedback',
+            $task,
+            [
+                'feedback' => $feedback,
+                'comment' => $comment,
+                'actor_id' => $feedbackFrom?->id,
+            ]
         );
 
         if (empty($recipientIds)) {
@@ -350,7 +434,7 @@ class TaskNotificationService
         ?string $comment = null,
         ?User $uploadedBy = null
     ): void {
-        if (!$this->isEventEnabled('evidence_added')) {
+        if (! $this->isEventEnabled('evidence_added')) {
             return;
         }
 
@@ -366,6 +450,20 @@ class TaskNotificationService
         $recipientIds = $this->filterUserIdsByEventRoles(
             $defaultRecipientIds,
             'evidence_added'
+        );
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $recipientIds = $this->filterRecipientsForDispatch(
+            $recipientIds,
+            'evidence_added',
+            $task,
+            [
+                'comment' => $comment,
+                'uploaded_by_id' => $uploadedBy?->id,
+            ]
         );
 
         if (empty($recipientIds)) {
@@ -411,14 +509,16 @@ class TaskNotificationService
         ?string $comment = null,
         ?User $reviewer = null
     ): void {
+        if ($newStatus === 'Completada') {
+            $this->notifyTaskCompleted($task, $comment, $reviewer);
+
+            return;
+        }
+
         $feedback = $newStatus === 'Completada' ? 'approved' : 'changes_requested';
 
         // Notificar feedback
         $this->notifyTaskFeedback($task, $feedback, $comment, $reviewer);
-
-        // Notificar decisión (para compatibilidad)
-        $decision = $newStatus === 'Completada' ? 'Aceptada' : 'Rechazada';
-        $this->notifyTaskReviewDecision($task, $decision, $comment, $reviewer);
 
         $this->notifyTaskStatusChanged(
             $task,
@@ -428,15 +528,11 @@ class TaskNotificationService
             $reviewer,
             $task->leaders()->pluck('users.id')->toArray(),
         );
-
-        if ($newStatus === 'Completada') {
-            $this->notifyTaskCompleted($task, $comment, $reviewer);
-        }
     }
 
     public function notifyTaskCompleted(Task $task, ?string $comment = null, ?User $completedBy = null): void
     {
-        if (!$this->isEventEnabled('task_completed')) {
+        if (! $this->isEventEnabled('task_completed')) {
             return;
         }
 
@@ -450,6 +546,20 @@ class TaskNotificationService
             ->all();
 
         $recipientIds = $this->filterUserIdsByEventRoles($defaultRecipientIds, 'task_completed');
+
+        if (empty($recipientIds)) {
+            return;
+        }
+
+        $recipientIds = $this->filterRecipientsForDispatch(
+            $recipientIds,
+            'task_completed',
+            $task,
+            [
+                'comment' => $comment,
+                'completed_by_id' => $completedBy?->id,
+            ]
+        );
 
         if (empty($recipientIds)) {
             return;
@@ -530,5 +640,39 @@ class TaskNotificationService
             ->map(fn ($id) => (int) $id)
             ->values()
             ->all();
+    }
+
+    /**
+     * @param  array<int, int|string>  $userIds
+     * @param  array<string, mixed>  $context
+     * @return array<int, int>
+     */
+    private function filterRecipientsForDispatch(array $userIds, string $eventKey, Task $task, array $context = []): array
+    {
+        return collect($userIds)
+            ->map(fn ($id) => (int) $id)
+            ->filter(fn ($id) => $id > 0)
+            ->unique()
+            ->filter(fn ($userId) => $this->shouldDispatchNotification($userId, $eventKey, $task->id, $context))
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $context
+     */
+    private function shouldDispatchNotification(int $userId, string $eventKey, int $taskId, array $context = []): bool
+    {
+        $contextHash = md5((string) json_encode($context, JSON_UNESCAPED_UNICODE));
+        $key = implode(':', [
+            'notifications',
+            'dedup',
+            $eventKey,
+            $taskId,
+            $userId,
+            $contextHash,
+        ]);
+
+        return Cache::add($key, true, now()->addSeconds(self::DEDUP_TTL_SECONDS));
     }
 }
