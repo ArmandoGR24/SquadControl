@@ -6,6 +6,7 @@ use App\Models\Task;
 use App\Models\TaskEvidence;
 use App\Models\TaskStatusHistory;
 use App\Models\User;
+use App\Notifications\TaskMaterialsUpdated;
 use App\Services\TaskNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -15,6 +16,163 @@ use Inertia\Inertia;
 class TareasController extends Controller
 {
     public function __construct(private TaskNotificationService $notificationService) {}
+
+    public function materialsIndex(Request $request)
+    {
+        $tareas = Task::query()
+            ->with(['leaders:id,name'])
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Task $task) => [
+                'id' => $task->id,
+                'nombre' => $task->name,
+                'estado' => $task->status,
+                'materiales' => $task->materials,
+                'lideres' => $task->leaders
+                    ->map(fn (User $user) => [
+                        'id' => $user->id,
+                        'nombre' => $user->name,
+                    ])
+                    ->values()
+                    ->all(),
+            ])
+            ->values()
+            ->all();
+
+        return Inertia::render('Materiales', [
+            'tareas' => $tareas,
+        ]);
+    }
+
+    public function materialsShow(Request $request, Task $task)
+    {
+        $task->load(['leaders:id,name']);
+
+        $tarea = [
+            'id' => $task->id,
+            'nombre' => $task->name,
+            'estado' => $task->status,
+            'materiales' => $task->materials,
+            'lideres' => $task->leaders
+                ->map(fn (User $user) => [
+                    'id' => $user->id,
+                    'nombre' => $user->name,
+                ])
+                ->values()
+                ->all(),
+        ];
+
+        $usuarios = User::query()
+            ->where('status', 'Activo')
+            ->whereIn('role', ['Admin', 'Supervisor'])
+            ->orderBy('name')
+            ->get(['id', 'name', 'role'])
+            ->map(fn (User $user) => [
+                'id' => $user->id,
+                'nombre' => $user->name,
+                'rol' => $user->role,
+            ])
+            ->values()
+            ->all();
+
+        return Inertia::render('MaterialesDetalle', [
+            'tarea' => $tarea,
+            'usuarios' => $usuarios,
+        ]);
+    }
+
+    public function updateMaterials(Request $request, Task $task)
+    {
+        $validated = $request->validate([
+            'materials' => ['required', 'array'],
+            'materials.*.label' => ['required', 'string', 'max:120'],
+            'materials.*.in_stock' => ['nullable', 'boolean'],
+            'materials.*.holder_user_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('users', 'id')->where(fn ($query) => $query
+                    ->whereIn('role', ['Admin', 'Supervisor'])
+                    ->where('status', 'Activo')),
+            ],
+        ]);
+
+        $holderIds = collect($validated['materials'])
+            ->pluck('holder_user_id')
+            ->filter()
+            ->map(fn ($id) => (int) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $holdersById = User::query()
+            ->whereIn('id', $holderIds)
+            ->get(['id', 'name'])
+            ->keyBy('id');
+
+        $normalizedMaterials = collect($validated['materials'])
+            ->map(function (array $material) use ($holdersById) {
+                $holderUserId = isset($material['holder_user_id']) ? (int) $material['holder_user_id'] : null;
+                $holderName = $holderUserId ? ($holdersById->get($holderUserId)?->name ?? null) : null;
+
+                return [
+                    'label' => trim((string) $material['label']),
+                    'in_stock' => (bool) ($material['in_stock'] ?? false),
+                    'holder_user_id' => $holderUserId,
+                    'holder_name' => $holderName,
+                ];
+            })
+            ->filter(fn (array $material) => $material['label'] !== '')
+            ->values()
+            ->all();
+
+        $task->update([
+            'materials' => json_encode($normalizedMaterials, JSON_UNESCAPED_UNICODE),
+        ]);
+
+        $leaderRecipientIds = $task->leaders()->pluck('users.id')->toArray();
+
+        if (empty($leaderRecipientIds)) {
+            $leaderRecipientIds = User::query()
+                ->where('role', 'Lider de Cuadrilla')
+                ->pluck('id')
+                ->toArray();
+        }
+
+        if (! empty($leaderRecipientIds)) {
+            $leaders = User::query()->whereIn('id', $leaderRecipientIds)->get();
+            $leaders->each(fn (User $leader) => $leader->notify(new TaskMaterialsUpdated($task, $normalizedMaterials, $request->user())));
+        }
+
+        return redirect()->back();
+    }
+
+    public function materialsMine(Request $request)
+    {
+        $user = $request->user();
+        $isLeader = $user?->role === 'Lider de Cuadrilla';
+
+        if (! $isLeader) {
+            abort(403);
+        }
+
+        $query = Task::query();
+
+        $tareas = $query
+            ->orderByDesc('created_at')
+            ->get()
+            ->map(fn (Task $task) => [
+                'id' => $task->id,
+                'nombre' => $task->name,
+                'estado' => $task->status,
+                'materiales' => $task->materials,
+            ])
+            ->values()
+            ->all();
+
+        return Inertia::render('users/Materiales', [
+            'tareas' => $tareas,
+        ]);
+    }
 
     public function mine(Request $request)
     {
@@ -43,6 +201,7 @@ class TareasController extends Controller
                     'id' => $task->id,
                     'nombre' => $task->name,
                     'instrucciones' => $task->instructions,
+                    'materiales' => $task->materials,
                     'estado' => $task->status,
                     'lideres' => $task->leaders
                         ->map(fn (User $leader) => [
@@ -113,6 +272,7 @@ class TareasController extends Controller
             'id' => $task->id,
             'nombre' => $task->name,
             'instrucciones' => $task->instructions,
+            'materiales' => $task->materials,
             'estado' => $task->status,
             'evidencias' => $task->evidences
                 ->sortByDesc('created_at')
@@ -164,6 +324,7 @@ class TareasController extends Controller
                     'id' => $task->id,
                     'nombre' => $task->name,
                     'instrucciones' => $task->instructions,
+                    'materiales' => $task->materials,
                     'estado' => $task->status,
                     'lideres' => $task->leaders
                         ->map(fn (User $user) => [
@@ -201,20 +362,8 @@ class TareasController extends Controller
             })
             ->all();
 
-        $lideres = User::query()
-            ->select(['id', 'name'])
-            ->where('role', 'Lider de Cuadrilla')
-            ->orderBy('name')
-            ->get()
-            ->map(fn (User $user) => [
-                'id' => $user->id,
-                'nombre' => $user->name,
-            ])
-            ->all();
-
         return Inertia::render('Tareas', [
             'tareas' => $tareas,
-            'lideres' => $lideres,
         ]);
     }
 
@@ -223,19 +372,17 @@ class TareasController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
+            'materials' => ['nullable', 'string', 'max:1000'],
             'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'En revisión', 'Completada'])],
-            'leader_ids' => ['array'],
-            'leader_ids.*' => ['integer', Rule::exists('users', 'id')],
             'status_comment' => ['nullable', 'string', 'max:500'],
         ]);
 
         $task = Task::create([
             'name' => $validated['name'],
             'instructions' => $validated['instructions'],
+            'materials' => $validated['materials'] ?? null,
             'status' => $validated['status'],
         ]);
-
-        $task->leaders()->sync($validated['leader_ids'] ?? []);
 
         TaskStatusHistory::create([
             'task_id' => $task->id,
@@ -244,21 +391,10 @@ class TareasController extends Controller
             'comment' => $validated['status_comment'] ?? null,
         ]);
 
-        // Notificar a los líderes cuando se les asigna una tarea
-        $leaderIds = $validated['leader_ids'] ?? [];
-
-        if (! empty($leaderIds)) {
-            $this->notificationService->notifyTaskAssigned(
-                $task,
-                $request->user(),
-                $leaderIds
-            );
-        } else {
-            $this->notificationService->notifyTaskPublished(
-                $task,
-                $request->user(),
-            );
-        }
+        $this->notificationService->notifyTaskPublished(
+            $task,
+            $request->user(),
+        );
 
         return redirect()->back();
     }
@@ -268,9 +404,8 @@ class TareasController extends Controller
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'instructions' => ['required', 'string'],
+            'materials' => ['nullable', 'string', 'max:1000'],
             'status' => ['required', 'string', Rule::in(['Pendiente', 'En progreso', 'En revisión', 'Completada'])],
-            'leader_ids' => ['array'],
-            'leader_ids.*' => ['integer', Rule::exists('users', 'id')],
             'status_comment' => ['nullable', 'string', 'max:500'],
         ]);
 
@@ -279,17 +414,9 @@ class TareasController extends Controller
         $task->update([
             'name' => $validated['name'],
             'instructions' => $validated['instructions'],
+            'materials' => $validated['materials'] ?? null,
             'status' => $validated['status'],
         ]);
-
-        // Notificar a nuevos líderes asignados
-        $this->notificationService->notifyNewLeaderAssignments(
-            $task,
-            $validated['leader_ids'] ?? [],
-            $request->user()
-        );
-
-        $task->leaders()->sync($validated['leader_ids'] ?? []);
 
         if ($previousStatus !== $validated['status'] || ! empty($validated['status_comment'])) {
             TaskStatusHistory::create([

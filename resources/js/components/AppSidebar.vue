@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Link, usePage } from '@inertiajs/vue3';
-import { BookOpen, Clock, LayoutGrid, User, Bug} from 'lucide-vue-next';
+import { BookOpen, Clock, LayoutGrid, User, Bug, Package} from 'lucide-vue-next';
 import { computed } from 'vue';
 import NavMain from '@/components/NavMain.vue';
 import NavUser from '@/components/NavUser.vue';
@@ -32,6 +32,11 @@ const items: NavItem[] = [
         title: 'Tareas',
         href: '/tareas',
         icon: BookOpen,
+    },
+    {
+        title: 'Materiales',
+        href: '/materiales',
+        icon: Package,
     },
     {
         title: 'Check-ins',

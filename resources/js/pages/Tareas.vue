@@ -29,13 +29,25 @@ type Tarea = {
     id: number;
     nombre: string;
     instrucciones: string;
+    materiales: string | null;
     estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
     lideres: Lider[];
     evidencias: Evidencia[];
     historial: Historial[];
 };
 
-const { tareas, lideres } = defineProps<{ tareas: Tarea[]; lideres: Lider[] }>();
+type MaterialTag = {
+    id: string;
+    label: string;
+};
+
+type MaterialStatusItem = {
+    label: string;
+    in_stock: boolean;
+    holder_name: string | null;
+};
+
+const { tareas } = defineProps<{ tareas: Tarea[] }>();
 
 const isCreateOpen = ref(false);
 const isEditOpen = ref(false);
@@ -51,16 +63,16 @@ const selectedTask = computed(() =>
 const createForm = useForm({
     name: '',
     instructions: '',
+    materials: '',
     status: 'Pendiente' as Tarea['estado'],
-    leader_ids: [] as number[],
     status_comment: '',
 });
 
 const editForm = useForm({
     name: '',
     instructions: '',
+    materials: '',
     status: 'Pendiente' as Tarea['estado'],
-    leader_ids: [] as number[],
     status_comment: '',
 });
 
@@ -79,6 +91,172 @@ const evidenceForm = useForm({
 
 const evidenceInputRef = ref<HTMLInputElement | null>(null);
 const reviewEvidenceInputRef = ref<HTMLInputElement | null>(null);
+const createMaterialInput = ref('');
+const editMaterialInput = ref('');
+const createMaterialTags = ref<MaterialTag[]>([]);
+const editMaterialTags = ref<MaterialTag[]>([]);
+const isMaterialModalOpen = ref(false);
+const materialModalTarget = ref<'create' | 'edit'>('create');
+
+const buildMaterialTag = (label: string): MaterialTag => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    label,
+});
+
+const parseMaterials = (value: string | null): MaterialTag[] => {
+    if (!value) return [];
+
+    const normalized = value.trim();
+    if (!normalized) return [];
+
+    try {
+        const parsed = JSON.parse(normalized) as Array<{ label?: string; name?: string }>;
+        if (Array.isArray(parsed)) {
+            return parsed
+                .map((item) => (item?.label ?? item?.name ?? '').trim())
+                .filter((item) => item.length > 0)
+                .map((label) => buildMaterialTag(label));
+        }
+    } catch {
+        // fallback to plain text format
+    }
+
+    return normalized
+        .split(/\r?\n|,/) 
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+        .map((label) => buildMaterialTag(label));
+};
+
+const serializeMaterials = (tags: MaterialTag[]): string => {
+    if (tags.length === 0) return '';
+
+    return JSON.stringify(
+        tags.map((tag) => ({ label: tag.label })),
+    );
+};
+
+const addMaterialTag = (target: 'create' | 'edit') => {
+    const inputRef = target === 'create' ? createMaterialInput : editMaterialInput;
+    const tagsRef = target === 'create' ? createMaterialTags : editMaterialTags;
+    const formRef = target === 'create' ? createForm : editForm;
+
+    const value = inputRef.value.trim();
+    if (!value) return;
+
+    const exists = tagsRef.value.some((tag) => tag.label.toLowerCase() === value.toLowerCase());
+    if (!exists) {
+        tagsRef.value = [...tagsRef.value, buildMaterialTag(value)];
+        formRef.materials = serializeMaterials(tagsRef.value);
+    }
+
+    inputRef.value = '';
+};
+
+const removeMaterialTag = (target: 'create' | 'edit', tagId: string) => {
+    const tagsRef = target === 'create' ? createMaterialTags : editMaterialTags;
+    const formRef = target === 'create' ? createForm : editForm;
+
+    tagsRef.value = tagsRef.value.filter((tag) => tag.id !== tagId);
+    formRef.materials = serializeMaterials(tagsRef.value);
+};
+
+const currentMaterialInput = computed({
+    get: () => (materialModalTarget.value === 'create' ? createMaterialInput.value : editMaterialInput.value),
+    set: (value: string) => {
+        if (materialModalTarget.value === 'create') {
+            createMaterialInput.value = value;
+            return;
+        }
+
+        editMaterialInput.value = value;
+    },
+});
+
+const openMaterialModal = (target: 'create' | 'edit') => {
+    materialModalTarget.value = target;
+
+    if (target === 'create') {
+        createMaterialInput.value = '';
+    } else {
+        editMaterialInput.value = '';
+    }
+
+    isMaterialModalOpen.value = true;
+};
+
+const closeMaterialModal = () => {
+    isMaterialModalOpen.value = false;
+
+    if (materialModalTarget.value === 'create') {
+        createMaterialInput.value = '';
+    } else {
+        editMaterialInput.value = '';
+    }
+};
+
+const confirmAddMaterial = () => {
+    const target = materialModalTarget.value;
+    const value = target === 'create' ? createMaterialInput.value : editMaterialInput.value;
+
+    if (!value.trim()) return;
+
+    addMaterialTag(target);
+
+    if (target === 'edit') {
+        submitEdit(false);
+    }
+
+    closeMaterialModal();
+};
+
+const formatMaterialsPreview = (value: string | null): string =>
+    parseMaterials(value)
+        .map((tag) => tag.label)
+        .join(', ');
+
+const parseMaterialStatus = (value: string | null): MaterialStatusItem[] => {
+    if (!value) return [];
+
+    const normalized = value.trim();
+    if (!normalized) return [];
+
+    try {
+        const parsed = JSON.parse(normalized) as Array<{
+            label?: string;
+            name?: string;
+            in_stock?: boolean;
+            holder_name?: string | null;
+        }>;
+
+        if (Array.isArray(parsed)) {
+            return parsed
+                .map((item) => ({
+                    label: (item?.label ?? item?.name ?? '').trim(),
+                    in_stock: Boolean(item?.in_stock),
+                    holder_name: item?.holder_name ?? null,
+                }))
+                .filter((item) => item.label.length > 0);
+        }
+    } catch {
+        // fallback to plain text format
+    }
+
+    return normalized
+        .split(/\r?\n|,/)
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0)
+        .map((label) => ({
+            label,
+            in_stock: false,
+            holder_name: null,
+        }));
+};
+
+const formatMaterialStatusPreview = (value: string | null): string =>
+    parseMaterialStatus(value)
+        .map((item) => `${item.label} (${item.in_stock ? (item.holder_name ? `Lo tiene: ${item.holder_name}` : 'En almacén') : 'Pendiente'})`)
+        .join(', ');
 
 const triggerEvidencePicker = () => {
     evidenceInputRef.value?.click();
@@ -149,6 +327,8 @@ const setReviewEvidenceFile = async (file: File | null) => {
 
 const openCreate = () => {
     createForm.reset();
+    createMaterialInput.value = '';
+    createMaterialTags.value = [];
     createForm.clearErrors();
     isCreateOpen.value = true;
 };
@@ -156,6 +336,8 @@ const openCreate = () => {
 const closeCreate = () => {
     isCreateOpen.value = false;
     createForm.reset();
+    createMaterialInput.value = '';
+    createMaterialTags.value = [];
     createForm.clearErrors();
 };
 
@@ -163,8 +345,10 @@ const openEdit = (tarea: Tarea) => {
     editingTaskId.value = tarea.id;
     editForm.name = tarea.nombre;
     editForm.instructions = tarea.instrucciones;
+    editMaterialTags.value = parseMaterials(tarea.materiales);
+    editMaterialInput.value = '';
+    editForm.materials = serializeMaterials(editMaterialTags.value);
     editForm.status = tarea.estado;
-    editForm.leader_ids = tarea.lideres.map((lider) => lider.id);
     editForm.status_comment = '';
     editForm.clearErrors();
     reviewForm.reset();
@@ -179,6 +363,8 @@ const closeEdit = () => {
     isEditOpen.value = false;
     editingTaskId.value = null;
     editForm.reset();
+    editMaterialInput.value = '';
+    editMaterialTags.value = [];
     editForm.clearErrors();
     reviewForm.reset();
     reviewForm.clearErrors();
@@ -188,17 +374,23 @@ const closeEdit = () => {
 };
 
 const submitCreate = () => {
+    createForm.materials = serializeMaterials(createMaterialTags.value);
     createForm.post('/tareas', {
         preserveScroll: true,
         onSuccess: () => closeCreate(),
     });
 };
 
-const submitEdit = () => {
+const submitEdit = (closeOnSuccess = true) => {
     if (!editingTaskId.value) return;
+    editForm.materials = serializeMaterials(editMaterialTags.value);
     editForm.put(`/tareas/${editingTaskId.value}`, {
         preserveScroll: true,
-        onSuccess: () => closeEdit(),
+        onSuccess: () => {
+            if (closeOnSuccess) {
+                closeEdit();
+            }
+        },
     });
 };
 
@@ -416,6 +608,10 @@ watch(
                                 <p class="mt-1 text-xs text-muted-foreground line-clamp-3">
                                     {{ tarea.instrucciones }}
                                 </p>
+                                <p v-if="tarea.materiales" class="mt-2 text-xs text-muted-foreground line-clamp-2">
+                                    <span class="font-medium text-foreground">Materiales:</span>
+                                    {{ formatMaterialStatusPreview(tarea.materiales) }}
+                                </p>
                             </div>
                             <span
                                 :class="[
@@ -492,6 +688,12 @@ watch(
                                         <span>{{ tarea.nombre }}</span>
                                         <span class="text-xs text-muted-foreground line-clamp-2">
                                             {{ tarea.instrucciones }}
+                                        </span>
+                                        <span
+                                            v-if="tarea.materiales"
+                                            class="text-xs text-muted-foreground line-clamp-1"
+                                        >
+                                            Materiales: {{ formatMaterialStatusPreview(tarea.materiales) }}
                                         </span>
                                     </div>
                                 </td>
@@ -593,6 +795,41 @@ watch(
                             </p>
                         </div>
 
+                        <div class="grid gap-2">
+                            <label class="text-sm font-medium text-foreground" for="create-materials">
+                                Material necesario
+                            </label>
+                            <div class="grid gap-2 rounded-md border border-input bg-background p-2">
+                                <div v-if="createMaterialTags.length" class="flex flex-wrap gap-2">
+                                    <span
+                                        v-for="tag in createMaterialTags"
+                                        :key="tag.id"
+                                        class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
+                                    >
+                                        {{ tag.label }}
+                                        <button
+                                            type="button"
+                                            class="text-primary/80 hover:text-primary"
+                                            @click="removeMaterialTag('create', tag.id)"
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                </div>
+                                <button
+                                    id="create-materials"
+                                    type="button"
+                                    class="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted"
+                                    @click="openMaterialModal('create')"
+                                >
+                                    Agregar material
+                                </button>
+                            </div>
+                            <p v-if="createForm.errors.materials" class="text-xs text-destructive">
+                                {{ createForm.errors.materials }}
+                            </p>
+                        </div>
+
                         <div class="grid gap-4 sm:grid-cols-2">
                             <div class="grid gap-2">
                                 <label
@@ -631,32 +868,6 @@ watch(
                                     type="text"
                                     class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
                                 />
-                            </div>
-                        </div>
-
-                        <div class="grid gap-2">
-                            <label class="text-sm font-medium text-foreground">
-                                Asignar lideres
-                            </label>
-                            <div
-                                class="grid gap-2 rounded-md border border-input bg-background p-3 text-sm text-foreground"
-                            >
-                                <label
-                                    v-for="lider in lideres"
-                                    :key="lider.id"
-                                    class="flex items-center gap-2"
-                                >
-                                    <input
-                                        type="checkbox"
-                                        class="h-4 w-4 rounded border-input text-primary"
-                                        :value="lider.id"
-                                        v-model="createForm.leader_ids"
-                                    />
-                                    <span>{{ lider.nombre }}</span>
-                                </label>
-                                <span v-if="lideres.length === 0" class="text-xs text-muted-foreground">
-                                    No hay lideres disponibles.
-                                </span>
                             </div>
                         </div>
 
@@ -731,6 +942,41 @@ watch(
                         </p>
                     </div>
 
+                    <div class="grid gap-2">
+                        <label class="text-sm font-medium text-foreground" for="edit-materials">
+                            Material necesario
+                        </label>
+                        <div class="grid gap-2 rounded-md border border-input bg-background p-2">
+                            <div v-if="editMaterialTags.length" class="flex flex-wrap gap-2">
+                                <span
+                                    v-for="tag in editMaterialTags"
+                                    :key="tag.id"
+                                    class="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
+                                >
+                                    {{ tag.label }}
+                                    <button
+                                        type="button"
+                                        class="text-primary/80 hover:text-primary"
+                                        @click="removeMaterialTag('edit', tag.id)"
+                                    >
+                                        ×
+                                    </button>
+                                </span>
+                            </div>
+                            <button
+                                id="edit-materials"
+                                type="button"
+                                class="h-9 rounded-md border border-input bg-background px-3 text-sm font-medium text-foreground shadow-sm hover:bg-muted"
+                                @click="openMaterialModal('edit')"
+                            >
+                                Agregar material
+                            </button>
+                        </div>
+                        <p v-if="editForm.errors.materials" class="text-xs text-destructive">
+                            {{ editForm.errors.materials }}
+                        </p>
+                    </div>
+
                     <div class="grid gap-4 sm:grid-cols-2">
                         <div class="grid gap-2">
                             <label class="text-sm font-medium text-foreground" for="edit-status">
@@ -760,30 +1006,6 @@ watch(
                                 type="text"
                                 class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
                              />
-                        </div>
-                    </div>
-
-                    <div class="grid gap-2">
-                        <label class="text-sm font-medium text-foreground">Asignar lideres</label>
-                        <div
-                            class="grid gap-2 rounded-md border border-input bg-background p-3 text-sm text-foreground"
-                        >
-                            <label
-                                v-for="lider in lideres"
-                                :key="lider.id"
-                                class="flex items-center gap-2"
-                            >
-                                <input
-                                    type="checkbox"
-                                    class="h-4 w-4 rounded border-input text-primary"
-                                    :value="lider.id"
-                                    v-model="editForm.leader_ids"
-                                />
-                                <span>{{ lider.nombre }}</span>
-                            </label>
-                            <span v-if="lideres.length === 0" class="text-xs text-muted-foreground">
-                                No hay lideres disponibles.
-                            </span>
                         </div>
                     </div>
 
@@ -1096,6 +1318,46 @@ watch(
                             @click="confirmDeleteTask"
                         >
                             {{ deleteForm.processing ? 'Eliminando...' : 'Eliminar tarea' }}
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div
+                v-if="isMaterialModalOpen"
+                class="fixed inset-0 z-[80] flex items-center justify-center bg-black/50 p-4"
+                @click.self="closeMaterialModal"
+            >
+                <div class="w-full max-w-md rounded-xl bg-background p-5 shadow-lg">
+                    <h3 class="text-lg font-semibold text-foreground">Agregar material</h3>
+                    <div class="mt-3 grid gap-2">
+                        <label class="text-sm font-medium text-foreground" for="material-modal-input">
+                            Nombre del material
+                        </label>
+                        <input
+                            id="material-modal-input"
+                            v-model="currentMaterialInput"
+                            type="text"
+                            placeholder="Escribe el material"
+                            class="h-9 rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-primary"
+                            @keydown.enter.prevent="confirmAddMaterial"
+                        >
+                    </div>
+
+                    <div class="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                        <button
+                            type="button"
+                            class="h-9 rounded-md border border-input bg-background px-4 text-sm font-medium text-foreground hover:bg-muted"
+                            @click="closeMaterialModal"
+                        >
+                            Cancelar
+                        </button>
+                        <button
+                            type="button"
+                            class="h-9 rounded-md bg-primary px-4 text-sm font-medium text-primary-foreground shadow hover:bg-primary/90"
+                            @click="confirmAddMaterial"
+                        >
+                            Agregar
                         </button>
                     </div>
                 </div>

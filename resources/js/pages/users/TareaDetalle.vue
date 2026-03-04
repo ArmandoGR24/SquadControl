@@ -24,12 +24,57 @@ type Tarea = {
   id: number;
   nombre: string;
   instrucciones: string;
+  materiales: string | null;
   estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
   evidencias: Evidencia[];
   historial: Historial[];
 };
 
 const { tarea } = defineProps<{ tarea: Tarea }>();
+
+type MaterialItem = {
+  label: string;
+  in_stock: boolean;
+  holder_name: string | null;
+};
+
+const parseMaterialItems = (materiales: string | null): MaterialItem[] => {
+  if (!materiales) return [];
+
+  const normalized = materiales.trim();
+  if (!normalized) return [];
+
+  try {
+    const parsed = JSON.parse(normalized) as Array<{
+      label?: string;
+      name?: string;
+      in_stock?: boolean;
+      holder_name?: string | null;
+    }>;
+
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map((item) => ({
+          label: (item?.label ?? item?.name ?? '').trim(),
+          in_stock: Boolean(item?.in_stock),
+          holder_name: item?.holder_name ?? null,
+        }))
+        .filter((item) => item.label.length > 0);
+    }
+  } catch {
+    // fallback for plain text format
+  }
+
+  return normalized
+    .split(/\r?\n|,/)
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0)
+    .map((label) => ({
+      label,
+      in_stock: false,
+      holder_name: null,
+    }));
+};
 
 const statusForm = useForm({
   status: tarea.estado as Tarea['estado'],
@@ -290,6 +335,17 @@ watch(
           <p class="text-sm text-muted-foreground">
             {{ tarea.instrucciones }}
           </p>
+          <div v-if="parseMaterialItems(tarea.materiales).length" class="grid gap-1 text-sm text-muted-foreground">
+            <p class="font-medium text-foreground">Materiales necesarios:</p>
+            <p
+              v-for="(material, index) in parseMaterialItems(tarea.materiales)"
+              :key="`${tarea.id}-material-${index}`"
+              class="text-sm"
+            >
+              {{ material.label }} ·
+              {{ material.in_stock ? (material.holder_name ? `Lo tiene: ${material.holder_name}` : 'En almacén') : 'Pendiente' }}
+            </p>
+          </div>
         </div>
       </div>
 

@@ -103,6 +103,16 @@ const handleLogout = () => {
                 </Link>
 
                 <Link
+                  href="/mis-materiales"
+                  class="rounded-md px-3 py-2 text-sm font-medium transition"
+                  :class="isActive('/mis-materiales')
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:bg-muted hover:text-foreground'"
+                >
+                  Materiales
+                </Link>
+
+                <Link
                   class="rounded-md px-3 py-2 text-left text-sm font-medium text-muted-foreground transition hover:bg-muted hover:text-foreground"
                   :href="logout()"
                   @click="handleLogout"

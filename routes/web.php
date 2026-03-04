@@ -111,6 +111,14 @@ Route::get('tareas', [TareasController::class, 'index'])
     ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas');
 
+Route::get('materiales', [TareasController::class, 'materialsIndex'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->name('materiales');
+
+Route::get('materiales/{task}', [TareasController::class, 'materialsShow'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->name('materiales.show');
+
 Route::post('tareas', [TareasController::class, 'store'])
     ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas.store');
@@ -135,9 +143,17 @@ Route::patch('tareas/{task}/revision', [TareasController::class, 'review'])
     ->middleware(['auth', 'role:Admin,RH,Supervisor'])
     ->name('tareas.revision');
 
+Route::patch('tareas/{task}/materiales', [TareasController::class, 'updateMaterials'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor'])
+    ->name('tareas.materiales.update');
+
 Route::get('mis-tareas', [TareasController::class, 'mine'])
     ->middleware(['auth'])
     ->name('tareas.mis');
+
+Route::get('mis-materiales', [TareasController::class, 'materialsMine'])
+    ->middleware(['auth'])
+    ->name('materiales.mis');
 
 Route::get('mis-tareas/{task}', [TareasController::class, 'showMine'])
     ->middleware(['auth'])
