@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { computed, onBeforeUnmount, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import LeaderLayout from '@/layouts/LeaderLayout.vue';
 import { optimizeEvidenceFile, validateEvidenceFile } from '@/lib/evidenceUpload';
 
@@ -207,75 +207,6 @@ onBeforeUnmount(() => {
 
 const isVideoEvidence = (url: string) => /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2)(\?|#|$)/i.test(url);
 
-const videoPosters = ref<Record<number, string>>({});
-
-const captureVideoPoster = (url: string) =>
-  new Promise<string>((resolve, reject) => {
-    const video = document.createElement('video');
-    const canvas = document.createElement('canvas');
-
-    const cleanup = () => {
-      video.removeAttribute('src');
-      video.load();
-    };
-
-    const fail = () => {
-      cleanup();
-      reject(new Error('poster-failed'));
-    };
-
-    video.preload = 'metadata';
-    video.muted = true;
-    video.playsInline = true;
-    video.crossOrigin = 'anonymous';
-    video.src = url;
-
-    video.addEventListener('error', fail, { once: true });
-    video.addEventListener(
-      'loadedmetadata',
-      () => {
-        const targetTime = Math.min(0.1, Math.max(0, video.duration || 0));
-        video.currentTime = targetTime;
-      },
-      { once: true },
-    );
-    video.addEventListener(
-      'seeked',
-      () => {
-        try {
-          const width = video.videoWidth || 320;
-          const height = video.videoHeight || 180;
-          canvas.width = width;
-          canvas.height = height;
-          const context = canvas.getContext('2d');
-          if (!context) {
-            fail();
-            return;
-          }
-          context.drawImage(video, 0, 0, width, height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.75);
-          cleanup();
-          resolve(dataUrl);
-        } catch {
-          fail();
-        }
-      },
-      { once: true },
-    );
-  });
-
-const ensureVideoPoster = async (evidencia: Evidencia) => {
-  if (!isVideoEvidence(evidencia.url)) return;
-  if (videoPosters.value[evidencia.id]) return;
-
-  try {
-    const poster = await captureVideoPoster(evidencia.url);
-    videoPosters.value = { ...videoPosters.value, [evidencia.id]: poster };
-  } catch {
-    return;
-  }
-};
-
 const selectedMedia = ref<Evidencia | null>(null);
 
 const openMedia = (evidencia: Evidencia) => {
@@ -288,16 +219,6 @@ const closeMedia = () => {
 
 const canSendReview = computed(
   () => tarea.estado !== 'En revisión' && tarea.estado !== 'Completada',
-);
-
-watch(
-  () => tarea.evidencias,
-  (evidencias) => {
-    evidencias.forEach((evidencia) => {
-      ensureVideoPoster(evidencia);
-    });
-  },
-  { immediate: true },
 );
 </script>
 
@@ -465,11 +386,9 @@ watch(
                   :src="preview.url"
                   class="mt-2 max-h-56 w-full rounded-md bg-black"
                   controls
-                  autoplay
-                  loop
                   muted
                   playsinline
-                  preload="auto"
+                  preload="metadata"
                 ></video>
                 <img
                   v-else

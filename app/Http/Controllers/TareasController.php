@@ -17,6 +17,17 @@ class TareasController extends Controller
 {
     public function __construct(private TaskNotificationService $notificationService) {}
 
+    private function evidenceUrl(string $path): string
+    {
+        $relativePath = ltrim($path, '/');
+
+        if ($relativePath !== '' && is_file(public_path('storage/'.$relativePath))) {
+            return Storage::disk('public')->url($relativePath);
+        }
+
+        return route('public.media.fallback', ['path' => $relativePath]);
+    }
+
     public function materialsIndex(Request $request)
     {
         $tareas = Task::query()
@@ -215,7 +226,7 @@ class TareasController extends Controller
                         ->map(function (TaskEvidence $evidence) {
                             return [
                                 'id' => $evidence->id,
-                                'url' => route('public.media.fallback', ['path' => $evidence->path]),
+                                'url' => $this->evidenceUrl($evidence->path),
                                 'comentario' => $evidence->comment,
                                 'fecha' => optional($evidence->created_at)->toDateTimeString(),
                                 'subido_por' => $evidence->uploader?->name,
@@ -279,7 +290,7 @@ class TareasController extends Controller
                 ->map(function (TaskEvidence $evidence) {
                     return [
                         'id' => $evidence->id,
-                        'url' => route('public.media.fallback', ['path' => $evidence->path]),
+                        'url' => $this->evidenceUrl($evidence->path),
                         'comentario' => $evidence->comment,
                         'fecha' => optional($evidence->created_at)->toDateTimeString(),
                         'subido_por' => $evidence->uploader?->name,
@@ -337,7 +348,7 @@ class TareasController extends Controller
                         ->map(function (TaskEvidence $evidence) {
                             return [
                                 'id' => $evidence->id,
-                                'url' => route('public.media.fallback', ['path' => $evidence->path]),
+                                'url' => $this->evidenceUrl($evidence->path),
                                 'comentario' => $evidence->comment,
                                 'fecha' => optional($evidence->created_at)->toDateTimeString(),
                                 'subido_por' => $evidence->uploader?->name,
