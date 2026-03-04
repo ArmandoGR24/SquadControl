@@ -474,9 +474,10 @@ class TareasController extends Controller
         $user = $request->user();
         $userId = $user?->id;
         $isLeader = $user?->role === 'Lider de Cuadrilla';
+        $canManageTasks = in_array($user?->role, ['Admin', 'RH', 'Supervisor'], true);
         $isAssigned = $task->leaders()->where('users.id', $userId)->exists();
 
-        if (! $isAssigned && ! $isLeader) {
+        if (! $isAssigned && ! $isLeader && ! $canManageTasks) {
             abort(403);
         }
 

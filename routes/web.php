@@ -132,7 +132,7 @@ Route::delete('tareas/{task}', [TareasController::class, 'destroy'])
     ->name('tareas.destroy');
 
 Route::post('tareas/{task}/evidencias', [TareasController::class, 'storeEvidence'])
-    ->middleware(['auth'])
+    ->middleware(['auth', 'role:Admin,RH,Supervisor,Lider de Cuadrilla'])
     ->name('tareas.evidencias.store');
 
 Route::patch('tareas/{task}/estado', [TareasController::class, 'updateStatus'])
