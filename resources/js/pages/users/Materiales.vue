@@ -7,31 +7,77 @@ type TareaMaterial = {
   id: number;
   nombre: string;
   estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
-  materiales_asignados: Array<{
+  materiales_asignados?: Array<{
     label: string;
     in_stock: boolean;
     holder_user_id: number | null;
     holder_name: string | null;
   }>;
+  materiales?: string | null | Array<{
+    label?: string;
+    name?: string;
+    in_stock?: boolean;
+    holder_user_id?: number | null;
+    holder_name?: string | null;
+  }>;
 };
 
 const { tareas } = defineProps<{ tareas: TareaMaterial[] }>();
+
+const toAssignedMaterials = (tarea: TareaMaterial) => {
+  if (Array.isArray(tarea.materiales_asignados)) {
+    return tarea.materiales_asignados;
+  }
+
+  if (Array.isArray(tarea.materiales)) {
+    return tarea.materiales
+      .map((material) => ({
+        label: (material?.label ?? material?.name ?? '').trim(),
+        in_stock: Boolean(material?.in_stock),
+        holder_user_id: material?.holder_user_id ? Number(material.holder_user_id) : null,
+        holder_name: material?.holder_name ?? null,
+      }))
+      .filter((material) => material.label.length > 0);
+  }
+
+  if (typeof tarea.materiales === 'string' && tarea.materiales.trim() !== '') {
+    return tarea.materiales
+      .split(/\r?\n|,/)
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0)
+      .map((label) => ({
+        label,
+        in_stock: false,
+        holder_user_id: null,
+        holder_name: null,
+      }));
+  }
+
+  return [];
+};
+
+const normalizedTareas = computed(() =>
+  tareas.map((tarea) => ({
+    ...tarea,
+    materiales_asignados: toAssignedMaterials(tarea),
+  })),
+);
 
 const selectedFilter = ref<'all' | 'pending' | 'in-stock'>('all');
 
 const filteredTareas = computed(() => {
   if (selectedFilter.value === 'all') {
-    return tareas;
+    return normalizedTareas.value;
   }
 
-  return tareas
+  return normalizedTareas.value
     .map((tarea) => ({
       ...tarea,
-      materiales_asignados: tarea.materiales_asignados.filter((material) =>
+      materiales_asignados: (tarea.materiales_asignados ?? []).filter((material) =>
         selectedFilter.value === 'in-stock' ? material.in_stock : !material.in_stock,
       ),
     }))
-    .filter((tarea) => tarea.materiales_asignados.length > 0);
+    .filter((tarea) => (tarea.materiales_asignados ?? []).length > 0);
 });
 </script>
 

@@ -108,7 +108,7 @@ class TareasController extends Controller
             'id' => $task->id,
             'nombre' => $task->name,
             'estado' => $task->status,
-            'materiales' => $task->materials,
+            'materiales' => $this->parseTaskMaterials($task->materials),
             'lideres' => $task->leaders
                 ->map(fn (User $user) => [
                     'id' => $user->id,

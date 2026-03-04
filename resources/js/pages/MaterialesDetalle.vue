@@ -12,7 +12,7 @@ type TareaMaterial = {
   id: number;
   nombre: string;
   estado: 'Pendiente' | 'En progreso' | 'En revisión' | 'Completada';
-  materiales: string | null;
+  materiales: MaterialItem[];
   lideres: Lider[];
 };
 
@@ -38,48 +38,14 @@ const form = useForm({
 const newMaterialLabel = ref('');
 const materialToDeleteIndex = ref<number | null>(null);
 const isAddMaterialModalOpen = ref(false);
-
-const splitMaterials = (materiales: string | null): MaterialItem[] => {
-  if (!materiales) return [];
-
-  const normalized = materiales.trim();
-  if (!normalized) return [];
-
-  try {
-    const parsed = JSON.parse(normalized) as Array<{
-      label?: string;
-      name?: string;
-      in_stock?: boolean;
-      holder_user_id?: number | null;
-      holder_name?: string | null;
-    }>;
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((item) => ({
-          label: (item?.label ?? item?.name ?? '').trim(),
-          in_stock: Boolean(item?.in_stock),
-          holder_user_id: item?.holder_user_id ? Number(item.holder_user_id) : null,
-          holder_name: item?.holder_name ?? null,
-        }))
-        .filter((item) => item.label.length > 0);
-    }
-  } catch {
-    // fallback for legacy plain text values
-  }
-
-  return normalized
-    .split(/\r?\n|,/)
-    .map((item) => item.trim())
-    .filter((item) => item.length > 0)
-    .map((label) => ({
-      label,
-      in_stock: false,
-      holder_user_id: null,
-      holder_name: null,
-    }));
-};
-
-const materials = ref<MaterialItem[]>(splitMaterials(tarea.materiales));
+const materials = ref<MaterialItem[]>(
+  (tarea.materiales ?? []).map((material) => ({
+    label: material.label,
+    in_stock: Boolean(material.in_stock),
+    holder_user_id: material.holder_user_id ?? null,
+    holder_name: material.holder_name ?? null,
+  })),
+);
 const selectedHolderUserId = ref<string>('');
 
 const syncSelectedHolderFromMaterials = () => {
@@ -180,6 +146,9 @@ const saveTaskMaterials = () => {
 
   form.patch(`/tareas/${tarea.id}/materiales`, {
     preserveScroll: true,
+    onError: () => {
+      console.warn('[Materiales] Error al guardar materiales', form.errors);
+    },
   });
 };
 </script>
@@ -273,6 +242,9 @@ const saveTaskMaterials = () => {
         <p v-else class="mt-2 text-sm text-muted-foreground">Sin material definido para esta tarea.</p>
 
         <div class="mt-3">
+          <p v-if="form.errors.materials" class="mb-2 text-xs text-destructive">
+            {{ form.errors.materials }}
+          </p>
           <button
             type="button"
             class="h-9 rounded-md bg-primary px-3 text-xs font-medium text-primary-foreground shadow hover:bg-primary/90 disabled:opacity-60"
