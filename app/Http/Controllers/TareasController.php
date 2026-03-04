@@ -490,13 +490,13 @@ class TareasController extends Controller
                 'nullable',
                 'file',
                 'required_without:evidences',
-                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v',
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v,video/webm,video/3gpp,video/3gpp2',
                 'max:256000',
             ],
             'evidences' => ['nullable', 'array', 'required_without:evidence'],
             'evidences.*' => [
                 'file',
-                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v',
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v,video/webm,video/3gpp,video/3gpp2',
                 'max:256000',
             ],
             'comment' => ['nullable', 'string', 'max:500'],
@@ -605,7 +605,7 @@ class TareasController extends Controller
             'evidence' => [
                 'nullable',
                 'file',
-                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v',
+                'mimetypes:image/jpeg,image/png,image/webp,image/gif,video/mp4,video/quicktime,video/x-m4v,video/webm,video/3gpp,video/3gpp2',
                 'max:256000',
             ],
         ]);

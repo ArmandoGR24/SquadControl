@@ -8,6 +8,9 @@ export const ALLOWED_EVIDENCE_MIME_TYPES = [
     'video/mp4',
     'video/quicktime',
     'video/x-m4v',
+    'video/webm',
+    'video/3gpp',
+    'video/3gpp2',
 ] as const;
 
 const MAX_IMAGE_DIMENSION = 1920;
@@ -21,7 +24,7 @@ const formatBytes = (bytes: number): string => {
 
 export const validateEvidenceFile = (file: File): string | null => {
     if (!ALLOWED_EVIDENCE_MIME_TYPES.includes(file.type as (typeof ALLOWED_EVIDENCE_MIME_TYPES)[number])) {
-        return 'Tipo de archivo no permitido. Usa imagen (jpg/png/webp/gif) o video (mp4/mov).';
+        return 'Tipo de archivo no permitido. Usa imagen (jpg/png/webp/gif) o video (mp4/mov/m4v/webm/3gp).';
     }
 
     if (file.size > MAX_EVIDENCE_SIZE_BYTES) {

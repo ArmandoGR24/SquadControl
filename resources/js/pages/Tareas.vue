@@ -452,7 +452,7 @@ const confirmDeleteTask = () => {
     });
 };
 
-const isVideoEvidence = (url: string) => /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url);
+const isVideoEvidence = (url: string) => /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2)(\?|#|$)/i.test(url);
 
 const selectedMedia = ref<Evidencia | null>(null);
 
@@ -1035,7 +1035,7 @@ watch(
                                 ref="evidenceInputRef"
                                 type="file"
                                 multiple
-                                accept="image/*,video/mp4,video/quicktime,video/x-m4v"
+                                accept="image/*,video/mp4,video/quicktime,video/x-m4v,video/webm,video/3gpp,video/3gpp2"
                                 class="hidden"
                                 @change="(event) => setEvidenceFiles((event.target as HTMLInputElement).files ?? null)"
                             />
@@ -1114,8 +1114,10 @@ watch(
                                     />
                                     <div
                                         v-else-if="isVideoEvidence(evidencia.url)"
-                                        class="mt-2 h-20 w-full rounded-md bg-muted/40 sm:h-28"
-                                    ></div>
+                                        class="mt-2 flex h-20 w-full items-center justify-center rounded-md bg-black/80 text-[11px] font-medium text-white sm:h-28"
+                                    >
+                                        Video
+                                    </div>
                                     <img
                                         v-else
                                         :src="evidencia.url"
@@ -1206,7 +1208,7 @@ watch(
                                 ref="reviewEvidenceInputRef"
                                 id="review-evidence"
                                 type="file"
-                                accept="image/*,video/mp4,video/quicktime,video/x-m4v"
+                                accept="image/*,video/mp4,video/quicktime,video/x-m4v,video/webm,video/3gpp,video/3gpp2"
                                 class="hidden"
                                 @change="(event) => setReviewEvidenceFile((event.target as HTMLInputElement).files?.[0] ?? null)"
                             />
@@ -1268,6 +1270,8 @@ watch(
                         class="max-h-[70dvh] w-full rounded-lg bg-black"
                         controls
                         autoplay
+                        playsinline
+                        preload="metadata"
                     ></video>
                     <img
                         v-else

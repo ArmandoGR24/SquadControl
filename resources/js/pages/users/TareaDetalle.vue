@@ -205,7 +205,7 @@ onBeforeUnmount(() => {
   releaseEvidencePreviews();
 });
 
-const isVideoEvidence = (url: string) => /\.(mp4|mov|m4v|webm)(\?|#|$)/i.test(url);
+const isVideoEvidence = (url: string) => /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2)(\?|#|$)/i.test(url);
 
 const videoPosters = ref<Record<number, string>>({});
 
@@ -416,7 +416,7 @@ watch(
               ref="evidenceInputRef"
               type="file"
               multiple
-              accept="image/*,video/mp4,video/quicktime,video/x-m4v"
+              accept="image/*,video/mp4,video/quicktime,video/x-m4v,video/webm,video/3gpp,video/3gpp2"
               class="hidden"
               @change="(event) => setEvidenceFiles((event.target as HTMLInputElement).files ?? null)"
             />
@@ -547,8 +547,10 @@ watch(
                 />
                 <div
                   v-else-if="isVideoEvidence(evidencia.url)"
-                  class="mt-2 h-28 w-full rounded-md bg-muted/40"
-                ></div>
+                  class="mt-2 flex h-28 w-full items-center justify-center rounded-md bg-black/80 text-[11px] font-medium text-white"
+                >
+                  Video
+                </div>
                 <img
                   v-else
                   :src="evidencia.url"
@@ -613,7 +615,7 @@ watch(
           controls
           autoplay
           playsinline
-          preload="auto"
+          preload="metadata"
         >
           Tu navegador no pudo previsualizar este video.
         </video>
