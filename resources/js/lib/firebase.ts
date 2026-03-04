@@ -113,9 +113,9 @@ export async function initializeFirebaseMessaging() {
                 await new Promise((resolve) => setTimeout(resolve, 500 * attempt));
             }
             
-            // No pasar serviceWorkerRegistration - Firebase lo encontrará automáticamente
             token = await getToken(messaging, {
                 vapidKey,
+                serviceWorkerRegistration: registration,
             });
             
             console.log('[Firebase] ✅ Token obtained successfully');
