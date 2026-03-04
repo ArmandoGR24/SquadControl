@@ -208,6 +208,7 @@ onBeforeUnmount(() => {
 const isVideoEvidence = (url: string) => /\.(mp4|mov|m4v|webm|3gp|3gpp|3g2)(\?|#|$)/i.test(url);
 
 const selectedMedia = ref<Evidencia | null>(null);
+const lastVideoTap = ref<{ id: number; time: number } | null>(null);
 
 const openMedia = (evidencia: Evidencia) => {
   selectedMedia.value = evidencia;
@@ -215,6 +216,19 @@ const openMedia = (evidencia: Evidencia) => {
 
 const closeMedia = () => {
   selectedMedia.value = null;
+};
+
+const handleVideoTouchEnd = (evidencia: Evidencia) => {
+  const now = Date.now();
+  const previousTap = lastVideoTap.value;
+
+  if (previousTap && previousTap.id === evidencia.id && now - previousTap.time <= 320) {
+    lastVideoTap.value = null;
+    openMedia(evidencia);
+    return;
+  }
+
+  lastVideoTap.value = { id: evidencia.id, time: now };
 };
 
 const canSendReview = computed(
@@ -452,7 +466,7 @@ const canSendReview = computed(
                 :key="evidencia.id"
                 type="button"
                 class="w-full rounded-md border border-input p-2 text-left sm:min-w-[180px] sm:max-w-[220px] sm:flex-shrink-0 sm:snap-start"
-                @click="!isVideoEvidence(evidencia.url) && openMedia(evidencia)"
+                @click="openMedia(evidencia)"
               >
                 <div class="flex items-center justify-between text-[11px] text-muted-foreground">
                   <span class="truncate">{{ evidencia.subido_por || 'Sin autor' }}</span>
@@ -466,7 +480,17 @@ const canSendReview = computed(
                   playsinline
                   preload="metadata"
                   @click.stop
+                  @dblclick.stop="openMedia(evidencia)"
+                  @touchend.stop="handleVideoTouchEnd(evidencia)"
                 ></video>
+                <button
+                  v-if="isVideoEvidence(evidencia.url)"
+                  type="button"
+                  class="mt-2 h-8 rounded-md border border-input bg-background px-3 text-xs font-medium text-foreground hover:bg-muted"
+                  @click.stop="openMedia(evidencia)"
+                >
+                  Ver en grande
+                </button>
                 <img
                   v-else
                   :src="evidencia.url"
