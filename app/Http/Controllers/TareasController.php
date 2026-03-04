@@ -28,6 +28,51 @@ class TareasController extends Controller
         return route('public.media.fallback', ['path' => $relativePath]);
     }
 
+    private function parseTaskMaterials(?string $materials): array
+    {
+        if (! is_string($materials) || trim($materials) === '') {
+            return [];
+        }
+
+        $normalized = trim($materials);
+
+        try {
+            $parsed = json_decode($normalized, true, 512, JSON_THROW_ON_ERROR);
+
+            if (is_array($parsed)) {
+                return collect($parsed)
+                    ->filter(fn ($item) => is_array($item))
+                    ->map(function (array $item) {
+                        $label = trim((string) ($item['label'] ?? $item['name'] ?? ''));
+
+                        return [
+                            'label' => $label,
+                            'in_stock' => (bool) ($item['in_stock'] ?? false),
+                            'holder_user_id' => isset($item['holder_user_id']) ? (int) $item['holder_user_id'] : null,
+                            'holder_name' => isset($item['holder_name']) ? (string) $item['holder_name'] : null,
+                        ];
+                    })
+                    ->filter(fn (array $item) => $item['label'] !== '')
+                    ->values()
+                    ->all();
+            }
+        } catch (\Throwable) {
+            // fallback for legacy plain text values
+        }
+
+        return collect(preg_split('/\r?\n|,/', $normalized) ?: [])
+            ->map(fn ($item) => trim((string) $item))
+            ->filter(fn ($item) => $item !== '')
+            ->map(fn ($label) => [
+                'label' => $label,
+                'in_stock' => false,
+                'holder_user_id' => null,
+                'holder_name' => null,
+            ])
+            ->values()
+            ->all();
+    }
+
     public function materialsIndex(Request $request)
     {
         $tareas = Task::query()
@@ -75,7 +120,7 @@ class TareasController extends Controller
 
         $usuarios = User::query()
             ->where('status', 'Activo')
-            ->whereIn('role', ['Admin', 'Supervisor'])
+            ->whereIn('role', ['Admin', 'Supervisor', 'Lider de Cuadrilla'])
             ->orderBy('name')
             ->get(['id', 'name', 'role'])
             ->map(fn (User $user) => [
@@ -102,7 +147,7 @@ class TareasController extends Controller
                 'nullable',
                 'integer',
                 Rule::exists('users', 'id')->where(fn ($query) => $query
-                    ->whereIn('role', ['Admin', 'Supervisor'])
+                    ->whereIn('role', ['Admin', 'Supervisor', 'Lider de Cuadrilla'])
                     ->where('status', 'Activo')),
             ],
         ]);
@@ -160,23 +205,34 @@ class TareasController extends Controller
     public function materialsMine(Request $request)
     {
         $user = $request->user();
+        $userId = $user?->id;
         $isLeader = $user?->role === 'Lider de Cuadrilla';
 
-        if (! $isLeader) {
+        if (! $isLeader || ! $userId) {
             abort(403);
         }
 
-        $query = Task::query();
-
-        $tareas = $query
+        $tareas = Task::query()
             ->orderByDesc('created_at')
             ->get()
-            ->map(fn (Task $task) => [
-                'id' => $task->id,
-                'nombre' => $task->name,
-                'estado' => $task->status,
-                'materiales' => $task->materials,
-            ])
+            ->map(function (Task $task) use ($userId) {
+                $assignedMaterials = collect($this->parseTaskMaterials($task->materials))
+                    ->filter(fn (array $material) => (int) ($material['holder_user_id'] ?? 0) === (int) $userId)
+                    ->values()
+                    ->all();
+
+                if (empty($assignedMaterials)) {
+                    return null;
+                }
+
+                return [
+                    'id' => $task->id,
+                    'nombre' => $task->name,
+                    'estado' => $task->status,
+                    'materiales_asignados' => $assignedMaterials,
+                ];
+            })
+            ->filter()
             ->values()
             ->all();
 
