@@ -1098,7 +1098,7 @@ watch(
                                     :key="evidencia.id"
                                     type="button"
                                     class="w-full rounded-md border border-input p-2 text-left sm:min-w-[180px] sm:max-w-[220px] sm:flex-shrink-0 sm:snap-start sm:p-3"
-                                    @click="openMedia(evidencia)"
+                                    @click="!isVideoEvidence(evidencia.url) && openMedia(evidencia)"
                                 >
                                     <div
                                         class="flex items-center justify-between text-[10px] text-muted-foreground sm:text-[11px]"
@@ -1106,18 +1106,15 @@ watch(
                                         <span class="truncate">{{ evidencia.subido_por || 'Sin autor' }}</span>
                                         <span class="ml-2 shrink-0">{{ evidencia.fecha }}</span>
                                     </div>
-                                    <img
-                                        v-if="isVideoEvidence(evidencia.url) && videoPosters[evidencia.id]"
-                                        :src="videoPosters[evidencia.id]"
-                                        alt="Evidencia en video"
-                                        class="mt-2 h-20 w-full rounded-md object-cover sm:h-28"
-                                    />
-                                    <div
-                                        v-else-if="isVideoEvidence(evidencia.url)"
-                                        class="mt-2 flex h-20 w-full items-center justify-center rounded-md bg-black/80 text-[11px] font-medium text-white sm:h-28"
-                                    >
-                                        Video
-                                    </div>
+                                    <video
+                                        v-if="isVideoEvidence(evidencia.url)"
+                                        :src="evidencia.url"
+                                        class="mt-2 h-20 w-full rounded-md bg-black object-cover sm:h-28"
+                                        controls
+                                        playsinline
+                                        preload="metadata"
+                                        @click.stop
+                                    ></video>
                                     <img
                                         v-else
                                         :src="evidencia.url"
