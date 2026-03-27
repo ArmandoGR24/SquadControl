@@ -96,6 +96,73 @@ docker compose up -d
 La aplicación queda disponible en:
 - http://localhost:8000
 
+## Instalacion tipo WordPress (ZIP + navegador, sin CLI en servidor)
+
+Este flujo esta pensado para un servidor en blanco donde solo subes un ZIP y abres una URL.
+
+### 1. Generar paquete de release en tu equipo
+
+En Windows (PowerShell):
+
+```powershell
+./scripts/build-release.ps1
+```
+
+En Linux/macOS:
+
+```bash
+bash scripts/build-release.sh
+```
+
+Se genera el archivo `release/squadcontrol-release.zip` con:
+- `vendor/` incluido
+- `public/build/` compilado
+- `public/install.php` (instalador web)
+- token de instalacion en `release/installer-token.txt`
+
+### 2. Subir y descomprimir en el hosting
+
+Sube el ZIP al `public_html` (o document root del dominio) y descomprime.
+
+### 3. Crear base de datos vacia
+
+Desde el panel de hosting (cPanel, Plesk, etc.) crea una base MySQL y un usuario con permisos.
+
+### 4. Ejecutar instalador web
+
+Abre en navegador:
+
+```text
+https://tu-dominio.com/install.php?token=EL_TOKEN_DE_RELEASE
+```
+
+El token viene en `release/installer-token.txt` y es obligatorio.
+
+Completa:
+- URL de la app
+- credenciales de base de datos
+- usuario administrador inicial
+
+El instalador hace automaticamente:
+- genera `.env`
+- ejecuta migraciones
+- crea/actualiza usuario administrador
+- optimiza cache de produccion
+- crea lock de instalacion (`storage/framework/installed.lock`)
+- invalida token de instalacion al terminar
+
+### 5. Seguridad post-instalacion
+
+Despues de instalar:
+- elimina `public/install.php`
+- confirma permisos de escritura para `storage/` y `bootstrap/cache/`
+
+### Notas importantes
+
+- Si falta `vendor/` o `public/build/`, el instalador se detiene y muestra error.
+- La plantilla usada por el instalador es `deploy/.env.installer.example`.
+- La clave del admin exige 12+ caracteres con mayuscula, minuscula, numero y simbolo.
+
 ## Funcionalidades principales
 
 - Autenticación completa (login, registro, recuperación y 2FA)

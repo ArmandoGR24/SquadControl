@@ -1,1 +1,0 @@
-import{d as e,o as a,g as r,G as t}from"./app-CVECAH1O.js";const l=e({inheritAttrs:!1,__name:"AppLogoIcon",props:{className:{}},setup(s){return(o,n)=>(a(),r("img",t({src:"/squad-logo.svg?v=1",alt:"Logo SquadControl",class:s.className},o.$attrs),null,16))}});export{l as _};
